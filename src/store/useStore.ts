@@ -155,7 +155,10 @@ export const useStore = create<AppState>()(
       },
       
       logout: () => {
-        supabase.auth.signOut();
+        const state = get();
+        if (state.isAuthenticated) {
+          supabase.auth.signOut();
+        }
         set({ user: null, isAuthenticated: false, patients: [], pharmacyItems: [], invoices: [], staff: [], pendingRegistrations: [] });
       },
     }),
