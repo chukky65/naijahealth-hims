@@ -1,4 +1,4 @@
-import { DepartmentStats, NigerianContextStatus, AIInsight } from '../types';
+import { DepartmentStats, NigerianContextStatus, SystemAlert } from '../types';
 
 export const mockNigerianContext: NigerianContextStatus = {
   powerStatus: 'Grid',
@@ -16,7 +16,7 @@ export const mockDepartments: DepartmentStats[] = [
   { name: 'Dental', patientVolume: 22, averageWaitTime: 30, bedOccupancy: 0, staffAvailability: 100, revenue: 950000 },
 ];
 
-export const mockAIInsights: AIInsight[] = [
+export const mockSystemAlerts: SystemAlert[] = [
   {
     id: '1',
     type: 'Prediction',

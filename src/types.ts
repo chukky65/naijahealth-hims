@@ -97,7 +97,7 @@ export interface StaffMember {
   status: 'Active' | 'On Leave' | 'Off Duty';
 }
 
-export interface AIInsight {
+export interface SystemAlert {
   id: string;
   type: 'Risk' | 'Opportunity' | 'Alert' | 'Prediction';
   title: string;

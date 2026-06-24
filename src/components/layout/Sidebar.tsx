@@ -36,7 +36,7 @@ export const Sidebar = () => {
     { name: 'Pharmacy', key: 'pharmacy', path: '/pharmacy', icon: Pill, roles: ['MedicalDirector', 'Pharmacist', 'Admin'] },
     { name: 'Patients', key: 'patients', path: '/patients', icon: Users, roles: ['MedicalDirector', 'Doctor', 'Receptionist', 'Admin'] },
     { name: 'Staff', key: 'staff', path: '/staff', icon: Contact, roles: ['MedicalDirector', 'Admin'] },
-    { name: 'AI & Analytics', key: 'analytics', path: '/analytics', icon: BrainCircuit, roles: ['MedicalDirector', 'Admin'] },
+    { name: 'System Analytics', key: 'analytics', path: '/analytics', icon: BrainCircuit, roles: ['MedicalDirector', 'Admin'] },
     { name: 'Audit Log', key: 'auditLog', path: '/audit-log', icon: History, roles: ['MedicalDirector', 'Admin'] },
     { name: 'Settings', key: 'settings', path: '/settings', icon: Settings, roles: ['MedicalDirector', 'Admin'] },
   ];

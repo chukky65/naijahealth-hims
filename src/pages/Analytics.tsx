@@ -1,6 +1,6 @@
 import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle, Badge } from '../components/ui/core';
-import { mockAIInsights } from '../data/mockData';
+import { mockSystemAlerts } from '../data/mockData';
 import { BrainCircuit, Sparkles, TrendingUp, ShieldAlert } from 'lucide-react';
 import { useStore } from '../store/useStore';
 import { Skeleton } from '../components/ui/Skeleton';
@@ -53,14 +53,13 @@ export const Analytics = () => {
     <div className="space-y-6">
       <div className="flex justify-between items-start">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">AI Insights & Predictive Analytics</h1>
+          <h1 className="text-2xl font-bold tracking-tight">System Insights & Predictive Analytics</h1>
           <p className="text-slate-500">Machine learning models forecasting admission rates, drug demands, and system risks.</p>
         </div>
-        <Badge variant="success" className="px-3 py-1.5 text-sm"><Sparkles className="w-4 h-4 mr-2"/> Antigravity Engine Active</Badge>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {mockAIInsights.map(insight => (
+        {mockSystemAlerts.map(insight => (
           <Card key={insight.id} className="relative overflow-hidden group">
             <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
               {insight.type === 'Alert' || insight.type === 'Risk' ? (

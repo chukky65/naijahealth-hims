@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, Badge } from '../components/ui/core';
-import { mockDepartments, mockAIInsights } from '../data/mockData';
+import { mockDepartments, mockSystemAlerts } from '../data/mockData';
 import { AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { Activity, Users, BedDouble, AlertTriangle, Calendar, ChevronDown } from 'lucide-react';
 import { useStore } from '../store/useStore';
@@ -131,7 +131,7 @@ export const Dashboard = () => {
           <CardContent className="p-6 flex items-center justify-between">
             <div>
               <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wide">{t('dashboard.criticalAlerts')}</p>
-              <h3 className="text-2xl font-bold mt-1 text-slate-900 dark:text-white">{mockAIInsights.filter(i => i.type === 'Alert' || i.type === 'Risk').length}</h3>
+              <h3 className="text-2xl font-bold mt-1 text-slate-900 dark:text-white">{mockSystemAlerts.filter(i => i.type === 'Alert' || i.type === 'Risk').length}</h3>
               <p className="text-xs text-red-600 mt-1 flex items-center font-medium">{t('dashboard.requiresImmediate')}</p>
             </div>
             <div className="p-3 bg-slate-100 dark:bg-slate-800 rounded-xl text-slate-600 dark:text-slate-400">
@@ -180,12 +180,11 @@ export const Dashboard = () => {
           {(user?.role === 'MedicalDirector' || user?.role === 'Admin') ? (
             <Card className="h-full">
               <CardHeader className="flex flex-row items-center justify-between">
-                <CardTitle>{t('dashboard.aiIntelligence')}</CardTitle>
-                <Badge variant="success">{t('dashboard.active')}</Badge>
+                <CardTitle>System Intelligence</CardTitle>
               </CardHeader>
               <CardContent className="p-0">
                 <div className="divide-y divide-slate-100 dark:divide-slate-800">
-                  {mockAIInsights.map(insight => (
+                  {mockSystemAlerts.map(insight => (
                     <div key={insight.id} className="p-4 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
                       <div className="flex items-center justify-between mb-2">
                         <Badge variant={
