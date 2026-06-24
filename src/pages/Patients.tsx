@@ -1,0 +1,660 @@
+import React, { useState, useMemo } from 'react';
+import { Card, CardContent, CardHeader, CardTitle, Badge } from '../components/ui/core';
+import { UserCheck, Clock, ShieldAlert, Plus, Search, X, ArrowUpDown, Download, ChevronLeft, ChevronRight } from 'lucide-react';
+import { format } from 'date-fns';
+import { PatientRecord } from '../types';
+import { toast } from 'sonner';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import * as z from 'zod';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
+import { useStore } from '../store/useStore';
+import { Skeleton, TableSkeleton } from '../components/ui/Skeleton';
+import { useTranslation } from 'react-i18next';
+
+import { PatientVitals } from '../components/PatientVitals';
+
+const patientSchema = z.object({
+  name: z.string().min(2, "Name must be at least 2 characters"),
+  age: z.coerce.number().min(0, "Age must be positive"),
+  gender: z.enum(['M', 'F']),
+  bloodGroup: z.string().min(1, "Blood group required"),
+  genotype: z.string().min(1, "Genotype required"),
+  contactInfo: z.string().min(5, "Contact info required"),
+  diagnosis: z.string().min(2, "Diagnosis required"),
+  department: z.string().min(1, "Department required"),
+  status: z.enum(['Inpatient', 'Outpatient', 'Discharged']),
+  paymentMethod: z.enum(['Out of Pocket', 'NHIA', 'Private Insurance']),
+  insuranceDetails: z.string().optional(),
+  medicalHistory: z.string().optional(),
+}).superRefine((data, ctx) => {
+  if (
+    (data.paymentMethod === 'NHIA' || data.paymentMethod === 'Private Insurance') && 
+    (!data.insuranceDetails || data.insuranceDetails.trim() === '')
+  ) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "Insurance ID / Provider Details required for this payment method",
+      path: ["insuranceDetails"],
+    });
+  }
+});
+type PatientFormValues = z.infer<typeof patientSchema>;
+
+export const Patients = () => {
+  const { patients, addPatient, addClinicalNote, isLoading, setIsLoading, user } = useStore();
+  const { t } = useTranslation();
+  const [searchQuery, setSearchQuery] = useState('');
+  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [selectedPatient, setSelectedPatient] = useState<PatientRecord | null>(null);
+  const [newNote, setNewNote] = useState('');
+
+  const handleAddNote = () => {
+    if (!newNote.trim() || !selectedPatient || !user) return;
+    
+    const note = {
+      id: Math.random().toString(36).substring(2, 9),
+      date: new Date().toISOString(),
+      note: newNote,
+      author: user.name,
+    };
+    
+    addClinicalNote(selectedPatient.id, note);
+    // Update local selectedPatient state to show the new note immediately
+    setSelectedPatient(prev => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        clinicalNotes: [note, ...(prev.clinicalNotes || [])]
+      }
+    });
+    setNewNote('');
+    toast.success('Clinical note added successfully');
+  };
+
+  React.useEffect(() => {
+    setIsLoading(true);
+    const timer = setTimeout(() => {
+      setIsLoading(false);
+    }, 1200);
+    return () => clearTimeout(timer);
+  }, [setIsLoading]);
+
+  React.useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setIsAddModalOpen(false);
+        setSelectedPatient(null);
+      }
+    };
+    if (isAddModalOpen || selectedPatient) {
+      window.addEventListener('keydown', handleKeyDown);
+    }
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isAddModalOpen, selectedPatient]);
+
+  const [sortConfig, setSortConfig] = useState<{ key: keyof PatientRecord; direction: 'asc' | 'desc' } | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 8;
+
+  const { register, handleSubmit, reset, formState: { errors } } = useForm<PatientFormValues>({
+    resolver: zodResolver(patientSchema) as any,
+    defaultValues: {
+      gender: 'M',
+      bloodGroup: 'O+',
+      genotype: 'AA',
+      department: 'Emergency',
+      status: 'Outpatient',
+      paymentMethod: 'Out of Pocket'
+    }
+  });
+
+  const onSubmit = (data: PatientFormValues) => {
+    const newPatient: PatientRecord = {
+      id: `PAT-${10000 + patients.length + 1}`,
+      ...data,
+      clinicalNotes: [],
+      admissionDate: new Date().toISOString(),
+    };
+    addPatient(newPatient);
+    setIsAddModalOpen(false);
+    reset();
+    toast.success('Patient Registration Successful', {
+      description: `${newPatient.name} has been added to the registry.`,
+    });
+  };
+
+  const handleSort = (key: keyof PatientRecord) => {
+    let direction: 'asc' | 'desc' = 'asc';
+    if (sortConfig && sortConfig.key === key && sortConfig.direction === 'asc') {
+      direction = 'desc';
+    }
+    setSortConfig({ key, direction });
+  };
+
+  const filteredAndSortedPatients = useMemo(() => {
+    let result = patients.filter(p => 
+      p.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
+      p.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      p.diagnosis.toLowerCase().includes(searchQuery.toLowerCase())
+    );
+
+    if (sortConfig !== null) {
+      result.sort((a, b) => {
+        if (a[sortConfig.key]! < b[sortConfig.key]!) return sortConfig.direction === 'asc' ? -1 : 1;
+        if (a[sortConfig.key]! > b[sortConfig.key]!) return sortConfig.direction === 'asc' ? 1 : -1;
+        return 0;
+      });
+    }
+    return result;
+  }, [patients, searchQuery, sortConfig]);
+
+  const currentPatients = useMemo(() => {
+    const start = (currentPage - 1) * itemsPerPage;
+    return filteredAndSortedPatients.slice(start, start + itemsPerPage);
+  }, [filteredAndSortedPatients, currentPage]);
+
+  const totalPages = Math.ceil(filteredAndSortedPatients.length / itemsPerPage);
+
+  const exportPDF = () => {
+    const doc = new jsPDF();
+    doc.text('Patient Registry Report', 14, 15);
+    autoTable(doc, {
+      startY: 20,
+      head: [['ID', 'Name', 'Age/Gender', 'Diagnosis', 'Department', 'Status']],
+      body: filteredAndSortedPatients.map(p => [
+        p.id, p.name, `${p.age}/${p.gender}`, p.diagnosis, p.department, p.status
+      ]),
+    });
+    doc.save('patient-registry.pdf');
+    toast.success('Report exported as PDF');
+  };
+
+  if (isLoading) {
+    return (
+      <div className="space-y-6">
+        <div className="flex justify-between items-center">
+          <div className="space-y-2">
+            <Skeleton className="h-8 w-48" />
+            <Skeleton className="h-4 w-72" />
+          </div>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          {[1, 2, 3].map(i => (
+            <Card key={i}>
+              <CardContent className="p-6 flex items-center space-x-4">
+                <Skeleton className="w-12 h-12 rounded-full" />
+                <div className="space-y-2">
+                  <Skeleton className="h-4 w-24" />
+                  <Skeleton className="h-8 w-16" />
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+        <Card>
+          <CardHeader>
+            <Skeleton className="h-8 w-48" />
+          </CardHeader>
+          <CardContent className="p-4">
+            <TableSkeleton rows={5} />
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  const canAddPatient = user?.role === 'Admin' || user?.role === 'Receptionist' || user?.role === 'MedicalDirector';
+
+  return (
+    <div className="space-y-6">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end gap-4">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight">{t('patients.title')}</h1>
+          <p className="text-slate-500">{t('patients.subtitle')}</p>
+        </div>
+        <div className="flex items-center gap-2">
+          <button 
+            onClick={exportPDF}
+            className="flex items-center gap-2 px-4 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 rounded-md text-sm font-medium hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
+          >
+            <Download className="w-4 h-4" /> {t('patients.export')}
+          </button>
+          {canAddPatient && (
+            <button 
+              onClick={() => setIsAddModalOpen(true)}
+              className="flex items-center gap-2 px-4 py-2 bg-sky-600 text-white rounded-md text-sm font-medium hover:bg-sky-700 transition-colors"
+            >
+              <Plus className="w-4 h-4" /> {t('patients.addPatient')}
+            </button>
+          )}
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <Card>
+          <CardContent className="p-6 flex items-center space-x-4">
+            <div className="p-3 bg-green-100 dark:bg-green-900/30 rounded-full text-green-600 dark:text-green-400">
+              <UserCheck className="w-6 h-6" />
+            </div>
+            <div>
+              <p className="text-sm font-medium text-slate-500">{t('patients.activeInpatients')}</p>
+              <h3 className="text-2xl font-bold">{patients.filter(p => p.status === 'Inpatient').length}</h3>
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-6 flex items-center space-x-4">
+            <div className="p-3 bg-amber-100 dark:bg-amber-900/30 rounded-full text-amber-600 dark:text-amber-400">
+              <Clock className="w-6 h-6" />
+            </div>
+            <div>
+              <p className="text-sm font-medium text-slate-500">{t('patients.outpatientQueue')}</p>
+              <h3 className="text-2xl font-bold">{patients.filter(p => p.status === 'Outpatient').length}</h3>
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-6 flex items-center space-x-4">
+            <div className="p-3 bg-red-100 dark:bg-red-900/30 rounded-full text-red-600 dark:text-red-400">
+              <ShieldAlert className="w-6 h-6" />
+            </div>
+            <div>
+              <p className="text-sm font-medium text-slate-500">{t('patients.criticalEmergency')}</p>
+              <h3 className="text-2xl font-bold">{patients.filter(p => p.department === 'Emergency').length}</h3>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      <Card>
+        <CardHeader className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+          <CardTitle>{t('patients.recentRegistry')}</CardTitle>
+          <div className="relative w-full sm:w-64">
+            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+            <input 
+              type="text" 
+              placeholder={t('patients.searchPlaceholder')}
+              aria-label="Search patients"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full pl-9 pr-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-md text-sm outline-none focus:ring-2 focus:ring-sky-500/50"
+            />
+          </div>
+        </CardHeader>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm text-left text-slate-500 dark:text-slate-400">
+            <thead className="text-xs text-slate-700 uppercase bg-slate-50 dark:bg-slate-800/50 dark:text-slate-300">
+              <tr>
+                <th className="p-0">
+                  <button 
+                    className="w-full h-full px-6 py-3 font-medium cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors flex items-center gap-1 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-sky-500 uppercase"
+                    onClick={() => handleSort('name')}
+                    aria-label="Sort by Patient Name"
+                  >
+                    Patient Details <ArrowUpDown className="w-3 h-3" />
+                  </button>
+                </th>
+                <th className="px-6 py-3 font-medium">Demographics</th>
+                <th className="p-0">
+                  <button 
+                    className="w-full h-full px-6 py-3 font-medium cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors flex items-center gap-1 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-sky-500 uppercase"
+                    onClick={() => handleSort('diagnosis')}
+                    aria-label="Sort by Diagnosis"
+                  >
+                    Diagnosis <ArrowUpDown className="w-3 h-3" />
+                  </button>
+                </th>
+                <th className="p-0">
+                  <button 
+                    className="w-full h-full px-6 py-3 font-medium cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors flex items-center gap-1 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-sky-500 uppercase"
+                    onClick={() => handleSort('department')}
+                    aria-label="Sort by Department"
+                  >
+                    Department <ArrowUpDown className="w-3 h-3" />
+                  </button>
+                </th>
+                <th className="px-6 py-3 font-medium">Payment Route</th>
+                <th className="p-0">
+                  <button 
+                    className="w-full h-full px-6 py-3 font-medium cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors flex items-center gap-1 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-sky-500 uppercase"
+                    onClick={() => handleSort('admissionDate')}
+                    aria-label="Sort by Status and Date"
+                  >
+                    Status & Date <ArrowUpDown className="w-3 h-3" />
+                  </button>
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {currentPatients.map((patient) => (
+                <tr 
+                  key={patient.id} 
+                  tabIndex={0}
+                  role="button"
+                  aria-label={`View details for patient ${patient.name}`}
+                  onClick={() => setSelectedPatient(patient)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      setSelectedPatient(patient);
+                    }
+                  }}
+                  className="border-b border-slate-100 dark:border-slate-800 last:border-0 hover:bg-slate-50 dark:hover:bg-slate-800/20 cursor-pointer focus:outline-none focus:bg-slate-100 dark:focus:bg-slate-800/50"
+                >
+                  <td className="px-6 py-4">
+                    <p className="font-medium text-slate-900 dark:text-white">{patient.name}</p>
+                    <p className="text-xs text-slate-400 font-mono mt-0.5">{patient.id}</p>
+                  </td>
+                  <td className="px-6 py-4">
+                    <p>{patient.age}yrs • {patient.gender}</p>
+                    <p className="text-xs text-slate-400 mt-0.5">{patient.bloodGroup} • {patient.genotype}</p>
+                  </td>
+                  <td className="px-6 py-4 font-medium text-slate-700 dark:text-slate-300">
+                    {patient.diagnosis}
+                  </td>
+                  <td className="px-6 py-4">{patient.department}</td>
+                  <td className="px-6 py-4">
+                    <Badge variant={patient.paymentMethod === 'Out of Pocket' ? 'warning' : 'success'}>
+                      {patient.paymentMethod}
+                    </Badge>
+                  </td>
+                  <td className="px-6 py-4">
+                    <p>
+                      <Badge variant={patient.status === 'Inpatient' ? 'danger' : 'default'}>
+                        {patient.status}
+                      </Badge>
+                    </p>
+                    <p className="text-xs text-slate-400 mt-1">{format(new Date(patient.admissionDate), 'MMM d, yyyy')}</p>
+                  </td>
+                </tr>
+              ))}
+              {currentPatients.length === 0 && (
+                <tr>
+                  <td colSpan={6} className="px-6 py-8 text-center text-slate-500">
+                    No patients found matching "{searchQuery}"
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+        <div className="p-4 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between">
+          <p className="text-sm text-slate-500">
+            Showing {((currentPage - 1) * itemsPerPage) + 1} to {Math.min(currentPage * itemsPerPage, filteredAndSortedPatients.length)} of {filteredAndSortedPatients.length} patients
+          </p>
+          <div className="flex items-center gap-1 text-sm">
+            <button 
+              disabled={currentPage === 1}
+              onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+              className="p-1 rounded-md text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-50"
+            >
+              <ChevronLeft className="w-5 h-5" />
+            </button>
+            <span className="px-2 font-medium">{currentPage} / {Math.max(1, totalPages)}</span>
+            <button 
+              disabled={currentPage >= totalPages}
+              onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+              className="p-1 rounded-md text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-50"
+            >
+              <ChevronRight className="w-5 h-5" />
+            </button>
+          </div>
+        </div>
+      </Card>
+
+      {/* Add Patient Modal */}
+      {isAddModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm" role="dialog" aria-modal="true" aria-labelledby="add-patient-title">
+          <div className="bg-white dark:bg-slate-900 rounded-xl shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto border border-slate-200 dark:border-slate-800">
+            <div className="sticky top-0 bg-white dark:bg-slate-900 p-6 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between z-10">
+              <h2 id="add-patient-title" className="text-xl font-bold">Register New Patient</h2>
+              <button 
+                onClick={() => setIsAddModalOpen(false)} 
+                className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300"
+                aria-label="Close add patient modal"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <form onSubmit={handleSubmit(onSubmit)} className="p-6 space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-slate-500 uppercase">Full Name</label>
+                  <input {...register("name")} type="text" className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-md text-sm outline-none focus:ring-2 focus:ring-sky-500/50" />
+                  {errors.name && <p className="text-xs text-red-500">{errors.name.message}</p>}
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1">
+                    <label className="text-xs font-semibold text-slate-500 uppercase">Age</label>
+                    <input {...register("age")} type="number" min="0" className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-md text-sm outline-none focus:ring-2 focus:ring-sky-500/50" />
+                    {errors.age && <p className="text-xs text-red-500">{errors.age.message}</p>}
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs font-semibold text-slate-500 uppercase">Gender</label>
+                    <select {...register("gender")} className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-md text-sm outline-none focus:ring-2 focus:ring-sky-500/50">
+                      <option value="M">Male (M)</option>
+                      <option value="F">Female (F)</option>
+                    </select>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1">
+                    <label className="text-xs font-semibold text-slate-500 uppercase">Blood Group</label>
+                    <select {...register("bloodGroup")} className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-md text-sm outline-none focus:ring-2 focus:ring-sky-500/50">
+                      <option value="O+">O+</option><option value="O-">O-</option>
+                      <option value="A+">A+</option><option value="A-">A-</option>
+                      <option value="B+">B+</option><option value="B-">B-</option>
+                      <option value="AB+">AB+</option><option value="AB-">AB-</option>
+                    </select>
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs font-semibold text-slate-500 uppercase">Genotype</label>
+                    <select {...register("genotype")} className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-md text-sm outline-none focus:ring-2 focus:ring-sky-500/50">
+                      <option value="AA">AA</option>
+                      <option value="AS">AS</option>
+                      <option value="SS">SS</option>
+                      <option value="AC">AC</option>
+                      <option value="SC">SC</option>
+                    </select>
+                  </div>
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-slate-500 uppercase">Contact Info</label>
+                  <input {...register("contactInfo")} type="text" placeholder="Phone or email" className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-md text-sm outline-none focus:ring-2 focus:ring-sky-500/50" />
+                  {errors.contactInfo && <p className="text-xs text-red-500">{errors.contactInfo.message}</p>}
+                </div>
+                
+                <div className="space-y-1 md:col-span-2">
+                  <label className="text-xs font-semibold text-slate-500 uppercase">Primary Diagnosis</label>
+                  <input {...register("diagnosis")} type="text" className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-md text-sm outline-none focus:ring-2 focus:ring-sky-500/50" />
+                  {errors.diagnosis && <p className="text-xs text-red-500">{errors.diagnosis.message}</p>}
+                </div>
+                
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-slate-500 uppercase">Department</label>
+                  <select {...register("department")} className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-md text-sm outline-none focus:ring-2 focus:ring-sky-500/50">
+                    <option value="Emergency">Emergency</option>
+                    <option value="Outpatient">Outpatient</option>
+                    <option value="Pediatrics">Pediatrics</option>
+                    <option value="Maternity">Maternity</option>
+                    <option value="Surgical">Surgical</option>
+                    <option value="Intensive Care Unit">Intensive Care Unit</option>
+                  </select>
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-slate-500 uppercase">Status</label>
+                  <select {...register("status")} className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-md text-sm outline-none focus:ring-2 focus:ring-sky-500/50">
+                    <option value="Outpatient">Outpatient</option>
+                    <option value="Inpatient">Inpatient</option>
+                  </select>
+                </div>
+                
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-slate-500 uppercase">Payment Method</label>
+                  <select {...register("paymentMethod")} className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-md text-sm outline-none focus:ring-2 focus:ring-sky-500/50">
+                    <option value="Out of Pocket">Out of Pocket</option>
+                    <option value="NHIA">NHIA</option>
+                    <option value="Private Insurance">Private Insurance</option>
+                  </select>
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-slate-500 uppercase">Insurance Details</label>
+                  <input {...register("insuranceDetails")} type="text" placeholder="NHIA No. or Provider" className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-md text-sm outline-none focus:ring-2 focus:ring-sky-500/50" />
+                  {errors.insuranceDetails && <p className="text-xs text-red-500">{errors.insuranceDetails.message}</p>}
+                </div>
+                
+                <div className="space-y-1 md:col-span-2">
+                  <label className="text-xs font-semibold text-slate-500 uppercase">Medical History Notes</label>
+                  <textarea {...register("medicalHistory")} rows={3} className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-md text-sm outline-none focus:ring-2 focus:ring-sky-500/50"></textarea>
+                </div>
+              </div>
+              <div className="flex justify-end gap-3 pt-4 border-t border-slate-100 dark:border-slate-800">
+                <button type="button" onClick={() => setIsAddModalOpen(false)} className="px-4 py-2 text-sm font-medium text-slate-600 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200">Cancel</button>
+                <button type="submit" className="px-4 py-2 bg-sky-600 text-white rounded-md text-sm font-medium hover:bg-sky-700 transition-colors">Save Patient</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* View Patient Detail Modal */}
+      {selectedPatient && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm" role="dialog" aria-modal="true" aria-labelledby="view-patient-title">
+          <div className="bg-white dark:bg-slate-900 rounded-xl shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto border border-slate-200 dark:border-slate-800">
+            <div className="sticky top-0 bg-white dark:bg-slate-900 p-6 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between z-10">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-lg font-bold text-slate-500">
+                  {selectedPatient.name.charAt(0)}
+                </div>
+                <div>
+                  <h2 id="view-patient-title" className="text-xl font-bold">{selectedPatient.name}</h2>
+                  <p className="text-xs font-mono text-slate-500">{selectedPatient.id}</p>
+                </div>
+              </div>
+              <button 
+                onClick={() => setSelectedPatient(null)} 
+                className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300"
+                aria-label="Close patient details modal"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            
+            <div className="p-6 space-y-6">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                <div className="p-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg border border-slate-100 dark:border-slate-800">
+                  <p className="text-[10px] text-slate-400 uppercase font-bold">Age / Gender</p>
+                  <p className="font-medium mt-1">{selectedPatient.age} / {selectedPatient.gender}</p>
+                </div>
+                <div className="p-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg border border-slate-100 dark:border-slate-800">
+                  <p className="text-[10px] text-slate-400 uppercase font-bold">Blood / Genotype</p>
+                  <p className="font-medium mt-1">{selectedPatient.bloodGroup} / {selectedPatient.genotype}</p>
+                </div>
+                 <div className="p-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg border border-slate-100 dark:border-slate-800">
+                  <p className="text-[10px] text-slate-400 uppercase font-bold">Status</p>
+                  <p className="font-medium mt-1">{selectedPatient.status}</p>
+                </div>
+                 <div className="p-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg border border-slate-100 dark:border-slate-800">
+                  <p className="text-[10px] text-slate-400 uppercase font-bold">Admission Date</p>
+                  <p className="font-medium mt-1">{format(new Date(selectedPatient.admissionDate), 'MMM d, yyyy')}</p>
+                </div>
+              </div>
+
+              <div>
+                <h3 className="text-sm font-bold border-b border-slate-100 dark:border-slate-800 pb-2 mb-3">Clinical Information</h3>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <p className="text-[10px] text-slate-400 uppercase font-bold mb-1">Primary Diagnosis</p>
+                    <p className="text-sm font-medium">{selectedPatient.diagnosis}</p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] text-slate-400 uppercase font-bold mb-1">Assigned Department</p>
+                    <p className="text-sm">{selectedPatient.department}</p>
+                  </div>
+                  <div className="sm:col-span-2">
+                    <p className="text-[10px] text-slate-400 uppercase font-bold mb-1">Medical History Notes</p>
+                    <p className="text-sm text-slate-600 dark:text-slate-300 bg-slate-50 dark:bg-slate-800/30 p-3 rounded-md border border-slate-100 dark:border-slate-800 min-h-[60px]">
+                      {selectedPatient.medicalHistory || 'No medical history recorded.'}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <h3 className="text-sm font-bold border-b border-slate-100 dark:border-slate-800 pb-2 mb-3">Vitals History (Last 7 Days)</h3>
+                <PatientVitals patientId={selectedPatient.id} />
+              </div>
+
+              <div>
+                <h3 className="text-sm font-bold border-b border-slate-100 dark:border-slate-800 pb-2 mb-3">Clinical Notes (Progress)</h3>
+                <div className="space-y-4">
+                  <div className="flex flex-col gap-2">
+                    <textarea 
+                      value={newNote}
+                      onChange={(e) => setNewNote(e.target.value)}
+                      placeholder="Add a new dated progress note..."
+                      className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-md text-sm outline-none focus:ring-2 focus:ring-sky-500/50 min-h-[80px]"
+                    />
+                    <div className="flex justify-end">
+                      <button 
+                        onClick={handleAddNote}
+                        disabled={!newNote.trim()}
+                        className="px-4 py-2 bg-sky-600 text-white rounded-md text-sm font-medium hover:bg-sky-700 transition-colors disabled:opacity-50"
+                      >
+                        Add Note
+                      </button>
+                    </div>
+                  </div>
+                  <div className="space-y-3 max-h-[300px] overflow-y-auto pr-2">
+                    {selectedPatient.clinicalNotes && selectedPatient.clinicalNotes.length > 0 ? (
+                      selectedPatient.clinicalNotes.map(note => (
+                        <div key={note.id} className="p-3 bg-slate-50 dark:bg-slate-800/30 rounded-lg border border-slate-100 dark:border-slate-800">
+                          <div className="flex justify-between items-center mb-2 text-xs text-slate-500">
+                            <span className="font-medium text-slate-700 dark:text-slate-300">{note.author}</span>
+                            <span>{format(new Date(note.date), 'MMM d, yyyy h:mm a')}</span>
+                          </div>
+                          <p className="text-sm text-slate-700 dark:text-slate-300 whitespace-pre-wrap">{note.note}</p>
+                        </div>
+                      ))
+                    ) : (
+                      <p className="text-sm text-slate-500 italic">No progress notes recorded yet.</p>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <h3 className="text-sm font-bold border-b border-slate-100 dark:border-slate-800 pb-2 mb-3">Administrative & Finance</h3>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <p className="text-[10px] text-slate-400 uppercase font-bold mb-1">Contact Information</p>
+                    <p className="text-sm">{selectedPatient.contactInfo || 'Not provided'}</p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] text-slate-400 uppercase font-bold mb-1">Payment Method</p>
+                    <p className="text-sm">
+                      <Badge variant={selectedPatient.paymentMethod === 'Out of Pocket' ? 'warning' : 'success'}>
+                        {selectedPatient.paymentMethod}
+                      </Badge>
+                    </p>
+                  </div>
+                  {selectedPatient.insuranceDetails && (
+                    <div className="sm:col-span-2">
+                      <p className="text-[10px] text-slate-400 uppercase font-bold mb-1">Insurance Details</p>
+                      <p className="text-sm font-mono">{selectedPatient.insuranceDetails}</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+            <div className="p-4 border-t border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/30 flex justify-end">
+               <button onClick={() => setSelectedPatient(null)} className="px-4 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 rounded-md text-sm font-medium hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors">Close</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};

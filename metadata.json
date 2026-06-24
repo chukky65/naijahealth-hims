@@ -1,0 +1,6 @@
+{
+  "name": "NaijaHealth HIMS",
+  "description": "Enterprise-grade Hospital Intelligence and Management System tailored for the Nigerian healthcare ecosystem. Includes department comparisons, AI insights, pharmacy, and patient tracking.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
