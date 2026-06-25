@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, Badge } from '../components/ui/core';
-import { UserCheck, Clock, ShieldAlert, Plus, Search, X, ArrowUpDown, Download, ChevronLeft, ChevronRight, Pill } from 'lucide-react';
+import { UserCheck, Clock, ShieldAlert, Plus, Search, X, ArrowUpDown, Download, ChevronLeft, ChevronRight, Pill, FlaskConical } from 'lucide-react';
 import { format } from 'date-fns';
 import { PatientRecord } from '../types';
 import { toast } from 'sonner';
@@ -43,7 +43,7 @@ const patientSchema = z.object({
 type PatientFormValues = z.infer<typeof patientSchema>;
 
 export const Patients = () => {
-  const { patients, addPatient, addClinicalNote, isLoading, setIsLoading, user, pharmacyItems, prescriptions, addPrescription } = useStore();
+  const { patients, addPatient, addClinicalNote, isLoading, setIsLoading, user, pharmacyItems, prescriptions, addPrescription, labTests, labOrders, addLabOrder } = useStore();
   const { t } = useTranslation();
   const [searchQuery, setSearchQuery] = useState('');
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
@@ -72,6 +72,22 @@ export const Patients = () => {
 
     setNewPrescription({ pharmacyItemId: '', dosage: '', frequency: '', durationDays: 1 });
     toast.success('Prescription sent to pharmacy successfully');
+  };
+
+  // Lab Order State
+  const [selectedLabTestId, setSelectedLabTestId] = useState('');
+
+  const handleAddLabOrder = () => {
+    if (!selectedLabTestId || !selectedPatient || !user) return;
+    
+    addLabOrder({
+      patientId: selectedPatient.id,
+      doctorName: user.name,
+      testId: selectedLabTestId
+    });
+
+    setSelectedLabTestId('');
+    toast.success('Lab test ordered successfully');
   };
 
   const handleAddNote = () => {
@@ -718,6 +734,66 @@ export const Patients = () => {
                       })
                     ) : (
                       <p className="text-sm text-slate-500 italic">No prescriptions found.</p>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <h3 className="text-sm font-bold border-b border-slate-100 dark:border-slate-800 pb-2 mb-3 flex items-center gap-2">
+                  <FlaskConical className="w-4 h-4 text-indigo-500" /> Laboratory & Radiology
+                </h3>
+                <div className="space-y-4">
+                  {(user?.role === 'Doctor' || user?.role === 'MedicalDirector') && (
+                    <div className="p-4 bg-indigo-50 dark:bg-indigo-900/10 border border-indigo-100 dark:border-indigo-900/30 rounded-lg space-y-3">
+                      <h4 className="text-xs font-bold text-indigo-800 dark:text-indigo-300 uppercase">Order New Test</h4>
+                      <div className="flex flex-col sm:flex-row gap-3">
+                        <select 
+                          className="flex-1 px-3 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-md text-sm"
+                          value={selectedLabTestId}
+                          onChange={(e) => setSelectedLabTestId(e.target.value)}
+                        >
+                          <option value="">Select Lab or Radiology Test...</option>
+                          {labTests.map(test => (
+                            <option key={test.id} value={test.id}>{test.name} - ₦{test.price.toLocaleString()}</option>
+                          ))}
+                        </select>
+                        <button 
+                          onClick={handleAddLabOrder}
+                          disabled={!selectedLabTestId}
+                          className="px-4 py-2 bg-indigo-600 text-white rounded-md text-sm font-medium hover:bg-indigo-700 disabled:opacity-50 whitespace-nowrap"
+                        >
+                          Order Test
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                  
+                  <div className="space-y-2">
+                    {labOrders.filter(o => o.patientId === selectedPatient.id).length > 0 ? (
+                      labOrders.filter(o => o.patientId === selectedPatient.id).map(order => {
+                        const test = labTests.find(t => t.id === order.testId);
+                        return (
+                          <div key={order.id} className="p-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-md flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                            <div className="flex-1">
+                              <p className="font-medium text-sm text-slate-800 dark:text-slate-200">{test?.name || 'Unknown Test'}</p>
+                              <p className="text-[10px] text-slate-400 mt-1">Ordered by {order.doctorName} on {format(new Date(order.date), 'MMM d, yyyy')}</p>
+                              
+                              {order.status === 'Completed' && (
+                                <div className="mt-2 p-2 bg-slate-50 dark:bg-slate-900 rounded border border-slate-100 dark:border-slate-800">
+                                  <p className="text-xs font-bold text-slate-700 dark:text-slate-300">Result: <span className="font-normal">{order.resultValue}</span></p>
+                                  {order.notes && <p className="text-xs text-slate-500 mt-1 italic">{order.notes}</p>}
+                                </div>
+                              )}
+                            </div>
+                            <Badge variant={order.status === 'Completed' ? 'success' : order.status === 'In Progress' ? 'info' : 'warning'}>
+                              {order.status}
+                            </Badge>
+                          </div>
+                        );
+                      })
+                    ) : (
+                      <p className="text-sm text-slate-500 italic">No lab or radiology orders found.</p>
                     )}
                   </div>
                 </div>

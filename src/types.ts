@@ -6,7 +6,8 @@ export type UserRole =
   | 'Pharmacist'
   | 'Admin'
   | 'Receptionist'
-  | 'Patient';
+  | 'Patient'
+  | 'LabTechnician';
 
 export interface PendingRegistration {
   id: string;
@@ -70,6 +71,26 @@ export interface Prescription {
   durationDays: number;
   status: 'Pending' | 'Dispensed' | 'Cancelled';
   date: string;
+}
+
+export interface LabTest {
+  id: string;
+  name: string;
+  category: string;
+  turnaroundTimeMinutes: number;
+  price: number;
+}
+
+export interface LabOrder {
+  id: string;
+  patientId: string;
+  doctorName: string;
+  testId: string;
+  status: 'Pending' | 'In Progress' | 'Completed';
+  resultValue?: string;
+  notes?: string;
+  date: string;
+  completedAt?: string;
 }
 
 export interface PatientRecord {

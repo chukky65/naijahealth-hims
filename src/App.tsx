@@ -11,6 +11,7 @@ import { Layout } from './components/layout/Layout';
 import { Dashboard } from './pages/Dashboard';
 import { Departments } from './pages/Departments';
 import { Pharmacy } from './pages/Pharmacy';
+import { Laboratory } from './pages/Laboratory';
 import { Patients } from './pages/Patients';
 import { Appointments } from './pages/Appointments';
 import { Billing } from './pages/Billing';
@@ -134,6 +135,11 @@ export default function App() {
               <Route path="pharmacy" element={
                 <RoleRoute allowedRoles={['MedicalDirector', 'Pharmacist', 'Admin']}>
                   <Pharmacy />
+                </RoleRoute>
+              } />
+              <Route path="laboratory" element={
+                <RoleRoute allowedRoles={['MedicalDirector', 'LabTechnician', 'Admin']}>
+                  <Laboratory />
                 </RoleRoute>
               } />
               <Route path="patients" element={

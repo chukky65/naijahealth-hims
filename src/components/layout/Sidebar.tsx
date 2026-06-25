@@ -1,6 +1,6 @@
 import React, { useEffect } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, Building2, Pill, Users, BrainCircuit, Settings, Activity, LogOut, Sun, Moon, Calendar, Receipt, Contact, History, User } from 'lucide-react';
+import { LayoutDashboard, Building2, Pill, Users, BrainCircuit, Settings, Activity, LogOut, Sun, Moon, Calendar, Receipt, Contact, History, User, FlaskConical } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { useStore } from '../../store/useStore';
 import { UserRole } from '../../types';
@@ -34,6 +34,7 @@ export const Sidebar = () => {
     { name: 'Billing', key: 'billing', path: '/billing', icon: Receipt, roles: ['MedicalDirector', 'Admin', 'Receptionist'] },
     { name: 'Departments', key: 'departments', path: '/departments', icon: Building2, roles: ['MedicalDirector', 'Admin'] },
     { name: 'Pharmacy', key: 'pharmacy', path: '/pharmacy', icon: Pill, roles: ['MedicalDirector', 'Pharmacist', 'Admin'] },
+    { name: 'Laboratory', key: 'laboratory', path: '/laboratory', icon: FlaskConical, roles: ['MedicalDirector', 'LabTechnician', 'Admin'] },
     { name: 'Patients', key: 'patients', path: '/patients', icon: Users, roles: ['MedicalDirector', 'Doctor', 'Receptionist', 'Admin'] },
     { name: 'Staff', key: 'staff', path: '/staff', icon: Contact, roles: ['MedicalDirector', 'Admin'] },
     { name: 'System Analytics', key: 'analytics', path: '/analytics', icon: BrainCircuit, roles: ['MedicalDirector', 'Admin'] },

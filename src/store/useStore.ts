@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { PatientRecord, PharmacyItem, User, Invoice, StaffMember, ClinicalNote, PendingRegistration, Prescription } from '../types';
+import { PatientRecord, PharmacyItem, User, Invoice, StaffMember, ClinicalNote, PendingRegistration, Prescription, LabTest, LabOrder } from '../types';
 import { supabase } from '../lib/supabase';
 
 interface AppState {
@@ -22,6 +22,11 @@ interface AppState {
   prescriptions: Prescription[];
   addPrescription: (prescription: Omit<Prescription, 'id' | 'date' | 'status'>) => Promise<void>;
   dispensePrescription: (id: string) => Promise<void>;
+  labTests: LabTest[];
+  labOrders: LabOrder[];
+  addLabOrder: (order: Omit<LabOrder, 'id' | 'date' | 'status' | 'resultValue' | 'notes' | 'completedAt'>) => Promise<void>;
+  updateLabOrderStatus: (id: string, status: 'In Progress') => Promise<void>;
+  completeLabOrder: (id: string, resultValue: string, notes: string) => Promise<void>;
   isLoading: boolean;
   setIsLoading: (loading: boolean) => void;
   user: User | null;
@@ -39,6 +44,8 @@ export const useStore = create<AppState>()(
       staff: [],
       pendingRegistrations: [],
       prescriptions: [],
+      labTests: [],
+      labOrders: [],
       theme: 'light',
       isLoading: false,
       user: null,
@@ -54,7 +61,9 @@ export const useStore = create<AppState>()(
             { data: invoices },
             { data: staff },
             { data: pendingRegistrations },
-            { data: prescriptions }
+            { data: prescriptions },
+            { data: labTests },
+            { data: labOrders }
           ] = await Promise.all([
             supabase.from('patients').select('*, clinical_notes(*)'),
             supabase.from('pharmacy_items').select('*'),
@@ -62,6 +71,8 @@ export const useStore = create<AppState>()(
             supabase.from('staff').select('*'),
             supabase.from('pending_registrations').select('*'),
             supabase.from('prescriptions').select('*'),
+            supabase.from('lab_tests').select('*'),
+            supabase.from('lab_orders').select('*'),
           ]);
 
           set({
@@ -90,6 +101,13 @@ export const useStore = create<AppState>()(
             prescriptions: (prescriptions || []).map((p: any) => ({
               id: p.id, patientId: p.patient_id, doctorName: p.doctor_name, pharmacyItemId: p.pharmacy_item_id,
               dosage: p.dosage, frequency: p.frequency, durationDays: p.duration_days, status: p.status, date: p.created_at
+            })),
+            labTests: (labTests || []).map((t: any) => ({
+              id: t.id, name: t.name, category: t.category, turnaroundTimeMinutes: t.turnaround_time_minutes, price: t.price
+            })),
+            labOrders: (labOrders || []).map((o: any) => ({
+              id: o.id, patientId: o.patient_id, doctorName: o.doctor_name, testId: o.test_id,
+              status: o.status, resultValue: o.result_value, notes: o.notes, date: o.created_at, completedAt: o.completed_at
             }))
           });
         } catch (error) {
@@ -222,6 +240,46 @@ export const useStore = create<AppState>()(
         }
       },
 
+      addLabOrder: async (order) => {
+        const dbOrder = {
+          patient_id: order.patientId,
+          doctor_name: order.doctorName,
+          test_id: order.testId,
+          status: 'Pending'
+        };
+        const { data, error } = await supabase.from('lab_orders').insert([dbOrder]).select().single();
+        if (!error && data) {
+          const newOrder: LabOrder = {
+            id: data.id, patientId: data.patient_id, doctorName: data.doctor_name, testId: data.test_id,
+            status: data.status, date: data.created_at
+          };
+          set((state) => ({ labOrders: [newOrder, ...state.labOrders] }));
+        }
+      },
+
+      updateLabOrderStatus: async (id, status) => {
+        const { error } = await supabase.from('lab_orders').update({ status }).eq('id', id);
+        if (!error) {
+          set((state) => ({
+            labOrders: state.labOrders.map(o => o.id === id ? { ...o, status } : o)
+          }));
+        }
+      },
+
+      completeLabOrder: async (id, resultValue, notes) => {
+        const { error } = await supabase.rpc('complete_lab_order', { 
+          p_order_id: id, 
+          p_result_value: resultValue, 
+          p_notes: notes 
+        });
+        if (!error) {
+          get().fetchData();
+        } else {
+          console.error("Failed to complete lab order:", error);
+          throw error;
+        }
+      },
+
       setIsLoading: (isLoading) => set({ isLoading }),
       
       login: (user) => {
@@ -235,7 +293,7 @@ export const useStore = create<AppState>()(
         if (state.isAuthenticated) {
           supabase.auth.signOut();
         }
-        set({ user: null, isAuthenticated: false, patients: [], pharmacyItems: [], invoices: [], staff: [], pendingRegistrations: [], prescriptions: [] });
+        set({ user: null, isAuthenticated: false, patients: [], pharmacyItems: [], invoices: [], staff: [], pendingRegistrations: [], prescriptions: [], labTests: [], labOrders: [] });
       },
     }),
     {
