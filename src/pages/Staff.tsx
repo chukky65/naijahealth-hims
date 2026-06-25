@@ -1,34 +1,18 @@
 import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, Badge } from '../components/ui/core';
 import { Search, Plus, Filter, UserCog, Mail, Phone, Clock, Check, X, ShieldAlert } from 'lucide-react';
-import { useQuery } from '@tanstack/react-query';
 import { useStore } from '../store/useStore';
 import { UserRole, StaffMember } from '../types';
 import { toast } from 'sonner';
 
-import { apiClient } from '../lib/apiClient';
 
-const fetchStaff = async () => {
-  const response = await apiClient.get<StaffMember[]>('/staff');
-  return response.data;
-};
-
-// Mock data for access requests
-const initialRequests = [
-  { id: 'req-1', name: 'Dr. Sarah Jenkins', email: 's.jenkins@example.com', role: 'Doctor', licenseNumber: 'MD-84729', reason: 'New hire in Cardiology', date: '2023-10-25' },
-  { id: 'req-2', name: 'James Wilson', email: 'j.wilson@example.com', role: 'Nurse', licenseNumber: 'RN-33921', reason: 'Emergency Department transfer', date: '2023-10-26' }
-];
 
 export const StaffDirectory = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [activeTab, setActiveTab] = useState<'directory' | 'requests'>('directory');
-  const [requests, setRequests] = useState(initialRequests);
-  const { user } = useStore();
-
-  const { data: staffList, isLoading } = useQuery({
-    queryKey: ['staff'],
-    queryFn: fetchStaff,
-  });
+  const { user, staff, pendingRegistrations, isLoading, approveRegistration, rejectRegistration } = useStore();
+  const staffList = staff;
+  const requests = pendingRegistrations;
 
   const filteredStaff = staffList?.filter(staff => 
     staff.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -44,14 +28,22 @@ export const StaffDirectory = () => {
     }
   };
 
-  const handleApprove = (id: string, name: string) => {
-    setRequests(requests.filter(req => req.id !== id));
-    toast.success(`Account approved for ${name}. They will receive an email notification.`);
+  const handleApprove = async (id: string, name: string) => {
+    try {
+      await approveRegistration(id);
+      toast.success(`Account approved for ${name}. They will receive an email notification.`);
+    } catch (e) {
+      toast.error('Failed to approve request');
+    }
   };
 
-  const handleReject = (id: string, name: string) => {
-    setRequests(requests.filter(req => req.id !== id));
-    toast.error(`Account request rejected for ${name}.`);
+  const handleReject = async (id: string, name: string) => {
+    try {
+      await rejectRegistration(id);
+      toast.success(`Account request rejected for ${name}.`);
+    } catch (e) {
+      toast.error('Failed to reject request');
+    }
   };
 
   const canManageStaff = user?.role === 'Admin' || user?.role === 'MedicalDirector';
