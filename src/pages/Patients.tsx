@@ -57,6 +57,7 @@ export const Patients = () => {
     dosage: '',
     frequency: '',
     durationDays: 1,
+    quantity: 1,
   });
 
   const handleAddPrescription = async () => {
@@ -86,9 +87,10 @@ export const Patients = () => {
         dosage: newPrescription.dosage,
         frequency: newPrescription.frequency,
         durationDays: newPrescription.durationDays,
+        quantity: newPrescription.quantity,
       });
 
-      setNewPrescription({ pharmacyItemId: '', dosage: '', frequency: '', durationDays: 1 });
+      setNewPrescription({ pharmacyItemId: '', dosage: '', frequency: '', durationDays: 1, quantity: 1 });
       toast.success('Prescription sent to pharmacy successfully');
     } catch (error: any) {
       toast.error('Failed to prescribe', { description: error.message || 'Ensure you have doctor permissions.' });
@@ -709,13 +711,27 @@ export const Patients = () => {
                           value={newPrescription.frequency}
                           onChange={(e) => setNewPrescription({...newPrescription, frequency: e.target.value})}
                         />
-                        <div className="flex items-center gap-2">
-                          <input 
-                            type="number" min="1" placeholder="Days" 
-                            className="w-full px-3 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-md text-sm"
-                            value={newPrescription.durationDays}
-                            onChange={(e) => setNewPrescription({...newPrescription, durationDays: parseInt(e.target.value) || 1})}
-                          />
+                        <div className="grid grid-cols-2 gap-2">
+                          <div>
+                            <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">Duration (Days)</label>
+                            <input 
+                              type="number" min="1"
+                              value={newPrescription.durationDays}
+                              onChange={(e) => setNewPrescription({...newPrescription, durationDays: parseInt(e.target.value) || 1})}
+                              className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-md text-sm outline-none focus:ring-2 focus:ring-sky-500/50"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">Quantity (Packs)</label>
+                            <input 
+                              type="number" min="1"
+                              value={newPrescription.quantity}
+                              onChange={(e) => setNewPrescription({...newPrescription, quantity: parseInt(e.target.value) || 1})}
+                              className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-md text-sm outline-none focus:ring-2 focus:ring-sky-500/50"
+                            />
+                          </div>
+                        </div>
+                        <div className="sm:col-span-2 flex justify-end">
                           <button 
                             onClick={handleAddPrescription}
                             disabled={!newPrescription.pharmacyItemId || !newPrescription.dosage || !newPrescription.frequency}
@@ -736,7 +752,7 @@ export const Patients = () => {
                           <div key={p.id} className="p-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-md flex justify-between items-center">
                             <div>
                               <p className="font-medium text-sm text-slate-800 dark:text-slate-200">{drug?.name || 'Unknown Drug'}</p>
-                              <p className="text-xs text-slate-500">{p.dosage} • {p.frequency} for {p.durationDays} days</p>
+                              <p className="text-xs text-slate-500">{p.dosage} • {p.frequency} for {p.durationDays} days • Qty: {p.quantity}</p>
                               <p className="text-[10px] text-slate-400 mt-1">Prescribed by {p.doctorName} on {format(new Date(p.date), 'MMM d, yyyy')}</p>
                             </div>
                             <Badge variant={p.status === 'Dispensed' ? 'success' : p.status === 'Pending' ? 'warning' : 'danger'}>

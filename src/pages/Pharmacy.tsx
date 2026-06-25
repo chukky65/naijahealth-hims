@@ -253,7 +253,7 @@ export const Pharmacy = () => {
                   <div>
                     <h4 className="font-bold text-slate-900 dark:text-white">{drug?.name || 'Unknown Drug'}</h4>
                     <p className="text-sm text-slate-600 dark:text-slate-300">
-                      {p.dosage} • {p.frequency} for {p.durationDays} days
+                      {p.dosage} • {p.frequency} for {p.durationDays} days <span className="font-bold text-sky-600 dark:text-sky-400 ml-2">• Qty: {p.quantity}</span>
                     </p>
                     <div className="flex gap-3 mt-2 text-xs text-slate-500">
                       <span>Patient: <span className="font-medium text-slate-700 dark:text-slate-300">{patient?.name || 'Unknown'}</span></span>

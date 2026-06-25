@@ -168,7 +168,7 @@ export const useStore = create<AppState>()(
             })),
             prescriptions: (prescriptions || []).map((p: any) => ({
               id: p.id, patientId: p.patient_id, doctorName: p.doctor_name, pharmacyItemId: p.pharmacy_item_id,
-              dosage: p.dosage, frequency: p.frequency, durationDays: p.duration_days, status: p.status, date: p.created_at
+              dosage: p.dosage, frequency: p.frequency, durationDays: p.duration_days, quantity: p.quantity, status: p.status, date: p.created_at
             })),
             labTests: (labTests || []).map((t: any) => ({
               id: t.id, name: t.name, category: t.category, turnaroundTimeMinutes: t.turnaround_time_minutes, price: t.price
@@ -387,7 +387,8 @@ export const useStore = create<AppState>()(
           p_pharmacy_item_id: prescription.pharmacyItemId,
           p_dosage: prescription.dosage,
           p_frequency: prescription.frequency,
-          p_duration_days: prescription.durationDays
+          p_duration_days: prescription.durationDays,
+          p_quantity: prescription.quantity
         });
 
         if (!error && data && data.success) {

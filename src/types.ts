@@ -69,6 +69,7 @@ export interface Prescription {
   dosage: string;
   frequency: string;
   durationDays: number;
+  quantity: number;
   status: 'Pending' | 'Dispensed' | 'Cancelled';
   date: string;
 }
