@@ -20,12 +20,16 @@ interface AppState {
   invoices: Invoice[];
   staff: StaffMember[];
   pendingRegistrations: PendingRegistration[];
+  auditLogs: any[];
   theme: 'light' | 'dark';
   setTheme: (theme: 'light' | 'dark') => void;
   fetchData: () => Promise<void>;
+  fetchAuditLogs: () => Promise<void>;
+  logEvent: (action: string, resourceType: string, details: string, resourceId?: string) => Promise<void>;
   addPatient: (patient: Omit<PatientRecord, 'id' | 'created_at'>) => Promise<void>;
   addPharmacyItem: (item: Omit<PharmacyItem, 'id' | 'created_at'>) => Promise<void>;
   addInvoice: (invoice: Omit<Invoice, 'id' | 'created_at'>) => Promise<void>;
+  updateInvoiceStatus: (id: string, newStatus: 'Pending' | 'Settled' | 'Overdue') => Promise<void>;
   addStaffMember: (member: Omit<StaffMember, 'id' | 'created_at'>) => Promise<void>;
   approveRegistration: (id: string) => Promise<void>;
   rejectRegistration: (id: string) => Promise<void>;
@@ -62,6 +66,7 @@ export const useStore = create<AppState>()(
       invoices: [],
       staff: [],
       pendingRegistrations: [],
+      auditLogs: [],
       prescriptions: [],
       labTests: [],
       labOrders: [],
@@ -104,6 +109,12 @@ export const useStore = create<AppState>()(
       fetchData: async () => {
         set({ isLoading: true });
         try {
+          // If Admin/MedicalDirector, fetch audit logs as well
+          const userRole = get().user?.role;
+          if (userRole === 'Admin' || userRole === 'MedicalDirector') {
+            get().fetchAuditLogs();
+          }
+
           const [
             { data: pharmacyItems },
             { data: invoices },
@@ -230,6 +241,32 @@ export const useStore = create<AppState>()(
         }
       },
 
+      fetchAuditLogs: async () => {
+        const { data, error } = await supabase.from('audit_logs').select('*').order('created_at', { ascending: false }).limit(100);
+        if (!error && data) {
+          set({ auditLogs: data.map(log => ({
+            id: log.id, user: log.user_name, role: log.user_role, action: log.action,
+            resourceType: log.resource_type, resourceId: log.resource_id, details: log.details,
+            timestamp: log.created_at, ipAddress: log.ip_address || 'Unknown'
+          }))});
+        }
+      },
+
+      logEvent: async (action, resourceType, details, resourceId) => {
+        const user = get().user;
+        if (!user) return;
+        
+        await supabase.from('audit_logs').insert([{
+          user_name: user.name,
+          user_role: user.role,
+          action: action,
+          resource_type: resourceType,
+          resource_id: resourceId || null,
+          details: details,
+          ip_address: '127.0.0.1' // Mocked IP as actual IP is tricky without server-side context
+        }]);
+      },
+
       addPatient: async (patient) => {
         const dbPatient = {
           name: patient.name, age: patient.age, gender: patient.gender,
@@ -242,6 +279,7 @@ export const useStore = create<AppState>()(
         const { data, error } = await supabase.from('patients').insert([dbPatient]).select().single();
         if (!error && data) {
           set((state) => ({ patients: [{...patient, id: data.id, clinicalNotes: []}, ...state.patients] }));
+          get().logEvent('CREATE', 'Patient Record', `Registered new patient: ${patient.name}`, data.id);
         }
       },
 
@@ -254,6 +292,7 @@ export const useStore = create<AppState>()(
         const { data, error } = await supabase.from('pharmacy_items').insert([dbItem]).select().single();
         if (!error && data) {
           set((state) => ({ pharmacyItems: [{...item, id: data.id}, ...state.pharmacyItems] }));
+          get().logEvent('CREATE', 'Inventory', `Added new pharmacy item: ${item.name}`, data.id);
         }
       },
 
@@ -265,6 +304,17 @@ export const useStore = create<AppState>()(
         const { data, error } = await supabase.from('invoices').insert([dbInvoice]).select().single();
         if (!error && data) {
           set((state) => ({ invoices: [{...invoice, id: data.id}, ...state.invoices] }));
+          get().logEvent('CREATE', 'Billing Record', `Generated invoice for ${invoice.patientName} (${invoice.type})`, data.id);
+        }
+      },
+
+      updateInvoiceStatus: async (id, newStatus) => {
+        const { error } = await supabase.from('invoices').update({ status: newStatus }).eq('id', id);
+        if (!error) {
+          set((state) => ({
+            invoices: state.invoices.map(inv => inv.id === id ? { ...inv, status: newStatus } : inv)
+          }));
+          get().logEvent('UPDATE', 'Billing Record', `Updated invoice status to ${newStatus}`, id);
         }
       },
 
@@ -272,6 +322,7 @@ export const useStore = create<AppState>()(
         const { data, error } = await supabase.from('staff').insert([member]).select().single();
         if (!error && data) {
           set((state) => ({ staff: [data, ...state.staff] }));
+          get().logEvent('CREATE', 'Staff Record', `Added new staff member: ${member.name}`, data.id);
         }
       },
 
@@ -296,15 +347,22 @@ export const useStore = create<AppState>()(
             pendingRegistrations: state.pendingRegistrations.filter(r => r.id !== id),
             staff: [data, ...state.staff]
           }));
+          get().logEvent('CREATE', 'Staff Record', `Approved registration for ${newStaff.name}`, data.id);
         }
       },
 
       rejectRegistration: async (id) => {
+        const state = get();
+        const reg = state.pendingRegistrations.find(r => r.id === id);
+        
         const { error } = await supabase.from('pending_registrations').delete().eq('id', id);
         if (!error) {
           set((state) => ({
             pendingRegistrations: state.pendingRegistrations.filter(r => r.id !== id)
           }));
+          if (reg) {
+            get().logEvent('DELETE', 'Registration Request', `Rejected registration for ${reg.name}`, id);
+          }
         }
       },
 
@@ -318,6 +376,7 @@ export const useStore = create<AppState>()(
                 : p
             )
           }));
+          get().logEvent('CREATE', 'Clinical Note', `Added clinical note for patient`, data.id);
         }
       },
 

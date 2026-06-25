@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Search, Filter, Download, Clock, User, Activity } from 'lucide-react';
+import { useStore } from '../store/useStore';
 
 interface AuditEvent {
   id: string;
@@ -13,81 +14,24 @@ interface AuditEvent {
   ipAddress: string;
 }
 
-// Mock data to use until the backend is fully connected
-const mockAuditLogs: AuditEvent[] = [
-  {
-    id: 'evt_1',
-    user: 'Dr. Sarah Jenkins',
-    role: 'Doctor',
-    action: 'UPDATE',
-    resourceType: 'Patient Record',
-    resourceId: 'PAT-1045',
-    details: 'Updated patient allergies and medical history.',
-    timestamp: new Date(Date.now() - 1000 * 60 * 15).toISOString(), // 15 mins ago
-    ipAddress: '192.168.1.104'
-  },
-  {
-    id: 'evt_2',
-    user: 'Admin User',
-    role: 'Admin',
-    action: 'DELETE',
-    resourceType: 'Billing Record',
-    resourceId: 'INV-2099',
-    details: 'Voided duplicate invoice.',
-    timestamp: new Date(Date.now() - 1000 * 60 * 60 * 2).toISOString(), // 2 hours ago
-    ipAddress: '192.168.1.101'
-  },
-  {
-    id: 'evt_3',
-    user: 'James Anderson',
-    role: 'Receptionist',
-    action: 'CREATE',
-    resourceType: 'Appointment',
-    resourceId: 'APT-5012',
-    details: 'Scheduled new consultation appointment.',
-    timestamp: new Date(Date.now() - 1000 * 60 * 60 * 5).toISOString(), // 5 hours ago
-    ipAddress: '192.168.1.112'
-  },
-  {
-    id: 'evt_4',
-    user: 'Dr. Emily Chen',
-    role: 'Doctor',
-    action: 'VIEW',
-    resourceType: 'Patient Record',
-    resourceId: 'PAT-1092',
-    details: 'Accessed sensitive patient medical records.',
-    timestamp: new Date(Date.now() - 1000 * 60 * 60 * 24).toISOString(), // 1 day ago
-    ipAddress: '192.168.1.105'
-  },
-  {
-    id: 'evt_5',
-    user: 'Michael Chang',
-    role: 'Pharmacist',
-    action: 'UPDATE',
-    resourceType: 'Inventory',
-    resourceId: 'MED-771',
-    details: 'Adjusted stock levels for Amoxicillin.',
-    timestamp: new Date(Date.now() - 1000 * 60 * 60 * 48).toISOString(), // 2 days ago
-    ipAddress: '192.168.1.120'
-  }
-];
+// Using real data from Supabase via useStore
 
 export const AuditLog = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
 
-  const [logs, setLogs] = useState<AuditEvent[]>([]);
+  const { auditLogs: logs, fetchAuditLogs } = useStore();
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    // Simulate network delay for mock data
-    const timer = setTimeout(() => {
-      setLogs(mockAuditLogs);
+    const loadLogs = async () => {
+      setIsLoading(true);
+      await fetchAuditLogs();
       setIsLoading(false);
-    }, 500);
-    return () => clearTimeout(timer);
-  }, []);
+    };
+    loadLogs();
+  }, [fetchAuditLogs]);
 
   const filteredLogs = logs?.filter(log => {
     const matchesSearch = log.action.toLowerCase().includes(searchQuery.toLowerCase()) ||

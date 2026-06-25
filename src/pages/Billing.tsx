@@ -26,7 +26,7 @@ export const Billing = () => {
   const { t } = useTranslation();
   const [searchQuery, setSearchQuery] = useState('');
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
-  const { user, invoices, addInvoice, isLoading } = useStore();
+  const { user, invoices, addInvoice, updateInvoiceStatus, isLoading } = useStore();
 
   const { register, handleSubmit, reset, formState: { errors } } = useForm<InvoiceFormValues>({
     resolver: zodResolver(invoiceSchema) as any,
@@ -56,13 +56,32 @@ export const Billing = () => {
     inv.id.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case 'Settled': return <Badge className="bg-green-100 text-green-700 border-green-200 dark:bg-green-900/30 dark:text-green-400 dark:border-green-800">Settled</Badge>;
-      case 'Pending': return <Badge className="bg-amber-100 text-amber-700 border-amber-200 dark:bg-amber-900/30 dark:text-amber-400 dark:border-amber-800">Pending</Badge>;
-      case 'Overdue': return <Badge className="bg-red-100 text-red-700 border-red-200 dark:bg-red-900/30 dark:text-red-400 dark:border-red-800">Overdue</Badge>;
-      default: return <Badge>{status}</Badge>;
+  const getStatusBadge = (status: string, inv: Invoice) => {
+    const badgeColors: Record<string, string> = {
+      'Settled': 'bg-green-100 text-green-700 border-green-200 dark:bg-green-900/30 dark:text-green-400 dark:border-green-800',
+      'Pending': 'bg-amber-100 text-amber-700 border-amber-200 dark:bg-amber-900/30 dark:text-amber-400 dark:border-amber-800',
+      'Overdue': 'bg-red-100 text-red-700 border-red-200 dark:bg-red-900/30 dark:text-red-400 dark:border-red-800'
+    };
+
+    if (canCreateInvoice) {
+      return (
+        <select 
+          value={status}
+          onChange={(e) => {
+            const newStatus = e.target.value as 'Pending' | 'Settled' | 'Overdue';
+            updateInvoiceStatus(inv.id, newStatus);
+            toast.success(`Invoice marked as ${newStatus}`);
+          }}
+          className={`px-2.5 py-0.5 rounded-full text-xs font-medium border appearance-none cursor-pointer focus:outline-none focus:ring-2 focus:ring-sky-500/50 ${badgeColors[status] || ''}`}
+        >
+          <option value="Pending">Pending</option>
+          <option value="Settled">Settled</option>
+          <option value="Overdue">Overdue</option>
+        </select>
+      );
     }
+
+    return <Badge className={badgeColors[status] || ''}>{status}</Badge>;
   };
 
   const getTypeIcon = (type: string) => {
@@ -270,7 +289,7 @@ export const Billing = () => {
                       ₦{inv.amount.toLocaleString()}
                     </td>
                     <td className="px-6 py-4">
-                      {getStatusBadge(inv.status)}
+                      {getStatusBadge(inv.status, inv)}
                     </td>
                     <td className="px-6 py-4 text-right">
                       <button 
