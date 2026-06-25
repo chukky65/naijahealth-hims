@@ -62,6 +62,22 @@ export const Patients = () => {
   const handleAddPrescription = () => {
     if (!newPrescription.pharmacyItemId || !newPrescription.dosage || !newPrescription.frequency || !selectedPatient || !user) return;
     
+    // CLINICAL SAFETY CHECK: ALLERGY ALERT
+    const drug = pharmacyItems.find(item => item.id === newPrescription.pharmacyItemId);
+    if (drug && selectedPatient.medicalHistory) {
+      const historyLower = selectedPatient.medicalHistory.toLowerCase();
+      const drugLower = drug.name.toLowerCase();
+      const categoryLower = drug.category.toLowerCase();
+      
+      // If the history mentions the drug name or its category, trigger a warning.
+      if (historyLower.includes(drugLower) || historyLower.includes(categoryLower)) {
+        const proceed = window.confirm(`⚠️ CLINICAL SAFETY ALERT ⚠️\n\nThis patient's medical history mentions "${drug.name}" or "${drug.category}". They may have an allergy or adverse reaction to this medication.\n\nAre you absolutely sure you want to proceed with this prescription?`);
+        if (!proceed) {
+          return; // Halt prescription
+        }
+      }
+    }
+
     addPrescription({
       patientId: selectedPatient.id,
       doctorName: user.name,
