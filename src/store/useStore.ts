@@ -381,23 +381,21 @@ export const useStore = create<AppState>()(
       },
 
       addPrescription: async (prescription) => {
-        const dbPrescription = {
-          patient_id: prescription.patientId,
-          doctor_name: prescription.doctorName,
-          pharmacy_item_id: prescription.pharmacyItemId,
-          dosage: prescription.dosage,
-          frequency: prescription.frequency,
-          duration_days: prescription.durationDays,
-          status: 'Pending'
-        };
-        const { data, error } = await supabase.from('prescriptions').insert([dbPrescription]).select().single();
-        if (!error && data) {
-          const newPrescription: Prescription = {
-            id: data.id, patientId: data.patient_id, doctorName: data.doctor_name,
-            pharmacyItemId: data.pharmacy_item_id, dosage: data.dosage, frequency: data.frequency,
-            durationDays: data.duration_days, status: data.status, date: data.created_at
-          };
-          set((state) => ({ prescriptions: [newPrescription, ...state.prescriptions] }));
+        const { data, error } = await supabase.rpc('prescribe_medication', {
+          p_patient_id: prescription.patientId,
+          p_doctor_name: prescription.doctorName,
+          p_pharmacy_item_id: prescription.pharmacyItemId,
+          p_dosage: prescription.dosage,
+          p_frequency: prescription.frequency,
+          p_duration_days: prescription.durationDays
+        });
+
+        if (!error && data && data.success) {
+          // Re-fetch data to sync new prescription and invoice
+          get().fetchData();
+        } else {
+          console.error("Failed to prescribe medication:", error);
+          throw error;
         }
       },
 

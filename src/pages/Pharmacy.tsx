@@ -111,9 +111,13 @@ export const Pharmacy = () => {
   const handleDispense = async (prescriptionId: string) => {
     try {
       await dispensePrescription(prescriptionId);
-      toast.success('Medication dispensed', { description: 'Stock updated and invoice generated.' });
-    } catch (error) {
-      toast.error('Dispensing failed', { description: 'Ensure you have permissions and item is in stock.' });
+      toast.success('Medication dispensed', { description: 'Stock updated.' });
+    } catch (error: any) {
+      if (error?.message?.includes('PAY_BEFORE_DISPENSE')) {
+        toast.error('Cannot Dispense: Unpaid Invoice', { description: 'The patient has not paid the bill for this medication.' });
+      } else {
+        toast.error('Dispensing failed', { description: 'Ensure you have permissions and item is in stock.' });
+      }
     }
   };
 
