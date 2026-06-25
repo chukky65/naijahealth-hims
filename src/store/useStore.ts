@@ -59,11 +59,28 @@ export const useStore = create<AppState>()(
           ]);
 
           set({
-            patients: patients || [],
-            pharmacyItems: pharmacyItems || [],
-            invoices: invoices || [],
+            patients: (patients || []).map((p: any) => ({
+              id: p.id, name: p.name, age: p.age, gender: p.gender, bloodGroup: p.blood_group,
+              genotype: p.genotype, paymentMethod: p.payment_method, diagnosis: p.diagnosis,
+              status: p.status, department: p.department, admissionDate: p.admission_date,
+              contactInfo: p.contact_info, medicalHistory: p.medical_history, insuranceDetails: p.insurance_details,
+              clinicalNotes: p.clinical_notes ? p.clinical_notes.map((n: any) => ({
+                id: n.id, date: n.date, note: n.note, author: n.author
+              })) : []
+            })),
+            pharmacyItems: (pharmacyItems || []).map((i: any) => ({
+              id: i.id, name: i.name, category: i.category, stockLevel: i.stock_level,
+              reorderLevel: i.reorder_level, expiryDate: i.expiry_date, unitPrice: i.unit_price,
+              isNHIACovered: i.is_nhia_covered, supplier: i.supplier
+            })),
+            invoices: (invoices || []).map((i: any) => ({
+              id: i.id, patientName: i.patient_name, amount: i.amount, date: i.date, status: i.status, type: i.type
+            })),
             staff: staff || [],
-            pendingRegistrations: pendingRegistrations || []
+            pendingRegistrations: (pendingRegistrations || []).map((r: any) => ({
+              id: r.id, name: r.name, email: r.email, role: r.role,
+              licenseNumber: r.license_number, requestReason: r.request_reason, date: r.date
+            }))
           });
         } catch (error) {
           console.error("Error fetching data:", error);
@@ -73,23 +90,40 @@ export const useStore = create<AppState>()(
       },
 
       addPatient: async (patient) => {
-        const { data, error } = await supabase.from('patients').insert([patient]).select().single();
+        const dbPatient = {
+          name: patient.name, age: patient.age, gender: patient.gender,
+          blood_group: patient.bloodGroup, genotype: patient.genotype,
+          payment_method: patient.paymentMethod, diagnosis: patient.diagnosis,
+          status: patient.status, department: patient.department,
+          admission_date: patient.admissionDate, contact_info: patient.contactInfo,
+          medical_history: patient.medicalHistory, insurance_details: patient.insuranceDetails
+        };
+        const { data, error } = await supabase.from('patients').insert([dbPatient]).select().single();
         if (!error && data) {
-          set((state) => ({ patients: [data, ...state.patients] }));
+          set((state) => ({ patients: [{...patient, id: data.id, clinicalNotes: []}, ...state.patients] }));
         }
       },
 
       addPharmacyItem: async (item) => {
-        const { data, error } = await supabase.from('pharmacy_items').insert([item]).select().single();
+        const dbItem = {
+          name: item.name, category: item.category, stock_level: item.stockLevel,
+          reorder_level: item.reorderLevel, expiry_date: item.expiryDate,
+          unit_price: item.unitPrice, is_nhia_covered: item.isNHIACovered, supplier: item.supplier
+        };
+        const { data, error } = await supabase.from('pharmacy_items').insert([dbItem]).select().single();
         if (!error && data) {
-          set((state) => ({ pharmacyItems: [data, ...state.pharmacyItems] }));
+          set((state) => ({ pharmacyItems: [{...item, id: data.id}, ...state.pharmacyItems] }));
         }
       },
 
       addInvoice: async (invoice) => {
-        const { data, error } = await supabase.from('invoices').insert([invoice]).select().single();
+        const dbInvoice = {
+          patient_name: invoice.patientName, amount: invoice.amount,
+          date: invoice.date, status: invoice.status, type: invoice.type
+        };
+        const { data, error } = await supabase.from('invoices').insert([dbInvoice]).select().single();
         if (!error && data) {
-          set((state) => ({ invoices: [data, ...state.invoices] }));
+          set((state) => ({ invoices: [{...invoice, id: data.id}, ...state.invoices] }));
         }
       },
 
@@ -134,12 +168,12 @@ export const useStore = create<AppState>()(
       },
 
       addClinicalNote: async (patientId, note) => {
-        const { data, error } = await supabase.from('clinical_notes').insert([{ ...note, patient_id: patientId }]).select().single();
+        const { data, error } = await supabase.from('clinical_notes').insert([{ date: note.date, note: note.note, author: note.author, patient_id: patientId }]).select().single();
         if (!error && data) {
           set((state) => ({
             patients: state.patients.map(p => 
               p.id === patientId 
-                ? { ...p, clinicalNotes: [data, ...(p.clinicalNotes || [])] }
+                ? { ...p, clinicalNotes: [{id: data.id, date: data.date, note: data.note, author: data.author}, ...(p.clinicalNotes || [])] }
                 : p
             )
           }));
