@@ -93,6 +93,18 @@ export interface LabOrder {
   completedAt?: string;
 }
 
+export interface Appointment {
+  id: string;
+  patientName: string;
+  doctorName: string;
+  appointmentDate: string;
+  appointmentTime: string;
+  durationMinutes: number;
+  type: string;
+  status: 'Pending' | 'Confirmed' | 'Checked In' | 'Cancelled';
+  date: string;
+}
+
 export interface PatientRecord {
   id: string;
   name: string;

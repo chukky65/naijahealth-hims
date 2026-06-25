@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { PatientRecord, PharmacyItem, User, Invoice, StaffMember, ClinicalNote, PendingRegistration, Prescription, LabTest, LabOrder } from '../types';
+import { PatientRecord, PharmacyItem, User, Invoice, StaffMember, ClinicalNote, PendingRegistration, Prescription, LabTest, LabOrder, Appointment } from '../types';
 import { supabase } from '../lib/supabase';
 
 interface AppState {
@@ -27,6 +27,8 @@ interface AppState {
   addLabOrder: (order: Omit<LabOrder, 'id' | 'date' | 'status' | 'resultValue' | 'notes' | 'completedAt'>) => Promise<void>;
   updateLabOrderStatus: (id: string, status: 'In Progress') => Promise<void>;
   completeLabOrder: (id: string, resultValue: string, notes: string) => Promise<void>;
+  appointments: Appointment[];
+  addAppointment: (appointment: Omit<Appointment, 'id' | 'date' | 'status' | 'durationMinutes'>) => Promise<{ success: boolean; error?: string }>;
   isLoading: boolean;
   setIsLoading: (loading: boolean) => void;
   user: User | null;
@@ -46,6 +48,7 @@ export const useStore = create<AppState>()(
       prescriptions: [],
       labTests: [],
       labOrders: [],
+      appointments: [],
       theme: 'light',
       isLoading: false,
       user: null,
@@ -63,7 +66,8 @@ export const useStore = create<AppState>()(
             { data: pendingRegistrations },
             { data: prescriptions },
             { data: labTests },
-            { data: labOrders }
+            { data: labOrders },
+            { data: appointments }
           ] = await Promise.all([
             supabase.from('patients').select('*, clinical_notes(*)'),
             supabase.from('pharmacy_items').select('*'),
@@ -73,6 +77,7 @@ export const useStore = create<AppState>()(
             supabase.from('prescriptions').select('*'),
             supabase.from('lab_tests').select('*'),
             supabase.from('lab_orders').select('*'),
+            supabase.from('appointments').select('*'),
           ]);
 
           set({
@@ -108,6 +113,10 @@ export const useStore = create<AppState>()(
             labOrders: (labOrders || []).map((o: any) => ({
               id: o.id, patientId: o.patient_id, doctorName: o.doctor_name, testId: o.test_id,
               status: o.status, resultValue: o.result_value, notes: o.notes, date: o.created_at, completedAt: o.completed_at
+            })),
+            appointments: (appointments || []).map((a: any) => ({
+              id: a.id, patientName: a.patient_name, doctorName: a.doctor_name, appointmentDate: a.appointment_date,
+              appointmentTime: a.appointment_time, durationMinutes: a.duration_minutes, type: a.type, status: a.status, date: a.created_at
             }))
           });
         } catch (error) {
@@ -280,6 +289,28 @@ export const useStore = create<AppState>()(
         }
       },
 
+      addAppointment: async (appointment) => {
+        const { data, error } = await supabase.rpc('book_appointment', {
+          p_patient_name: appointment.patientName,
+          p_doctor_name: appointment.doctorName,
+          p_date: appointment.appointmentDate,
+          p_time: appointment.appointmentTime,
+          p_type: appointment.type
+        });
+
+        if (error) {
+          console.error("RPC Error:", error);
+          return { success: false, error: error.message };
+        }
+
+        if (data && data.success) {
+          get().fetchData(); // Refresh to get the new appointment
+          return { success: true };
+        } else {
+          return { success: false, error: data?.error || 'Double booking conflict detected' };
+        }
+      },
+
       setIsLoading: (isLoading) => set({ isLoading }),
       
       login: (user) => {
@@ -293,7 +324,7 @@ export const useStore = create<AppState>()(
         if (state.isAuthenticated) {
           supabase.auth.signOut();
         }
-        set({ user: null, isAuthenticated: false, patients: [], pharmacyItems: [], invoices: [], staff: [], pendingRegistrations: [], prescriptions: [], labTests: [], labOrders: [] });
+        set({ user: null, isAuthenticated: false, patients: [], pharmacyItems: [], invoices: [], staff: [], pendingRegistrations: [], prescriptions: [], labTests: [], labOrders: [], appointments: [] });
       },
     }),
     {

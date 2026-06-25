@@ -1,35 +1,31 @@
 import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, Badge } from '../components/ui/core';
-import { Calendar as CalendarIcon, Clock, User, ChevronLeft, ChevronRight, Plus } from 'lucide-react';
-import { useQuery } from '@tanstack/react-query';
+import { Calendar as CalendarIcon, Clock, User, ChevronLeft, ChevronRight, Plus, X, AlertCircle } from 'lucide-react';
 import { Skeleton } from '../components/ui/Skeleton';
 import { format, addDays, startOfWeek } from 'date-fns';
 import { useStore } from '../store/useStore';
 import { useTranslation } from 'react-i18next';
-
-const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
-
-// Mock Fetch Function utilizing React Query convention
-const fetchAppointments = async () => {
-  await delay(1000); // Simulate network latency
-  return [
-    { id: 1, patientName: 'Ahmed Ali', time: '09:00 AM', status: 'Confirmed', doctor: 'Dr. Sarah Okafor', type: 'Consultation' },
-    { id: 2, patientName: 'Victoria Osas', time: '10:30 AM', status: 'Checked In', doctor: 'Dr. Musa Adebayo', type: 'Follow-up' },
-    { id: 3, patientName: 'Nnamdi Kalu', time: '11:15 AM', status: 'Pending', doctor: 'Dr. Sarah Okafor', type: 'Routine Check' },
-    { id: 4, patientName: 'Fatima Umar', time: '01:00 PM', status: 'Confirmed', doctor: 'Dr. Musa Adebayo', type: 'Consultation' },
-    { id: 5, patientName: 'Chinedu Eze', time: '02:45 PM', status: 'Cancelled', doctor: 'Dr. Sarah Okafor', type: 'Lab Review' }
-  ];
-};
+import { toast } from 'sonner';
 
 export const Appointments = () => {
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
-  const { user } = useStore();
+  const { user, appointments, addAppointment, staff, patients, isLoading } = useStore();
   const { t } = useTranslation();
   
-  const { data: appointments, isLoading, error } = useQuery({
-    queryKey: ['appointments', selectedDate.toISOString()],
-    queryFn: fetchAppointments,
+  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [newAppointment, setNewAppointment] = useState({
+    patientName: '',
+    doctorName: '',
+    appointmentTime: '09:00',
+    type: 'Consultation'
   });
+  const [isBooking, setIsBooking] = useState(false);
+  
+  const doctors = staff.filter(s => s.role === 'Doctor' || s.role === 'MedicalDirector');
+
+  const filteredAppointments = appointments.filter(
+    app => app.appointmentDate === format(selectedDate, 'yyyy-MM-dd')
+  ).sort((a, b) => a.appointmentTime.localeCompare(b.appointmentTime));
 
   const getStatusColor = (status: string) => {
     switch(status) {
@@ -54,7 +50,10 @@ export const Appointments = () => {
           <p className="text-slate-500 dark:text-slate-400">{t('appointments.subtitle')}</p>
         </div>
         {canMakeAppointment && (
-          <button className="flex items-center gap-2 px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white rounded-lg font-medium transition-colors">
+          <button 
+            onClick={() => setIsAddModalOpen(true)}
+            className="flex items-center gap-2 px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white rounded-lg font-medium transition-colors"
+          >
             <Plus className="w-4 h-4" />
             {t('appointments.newAppointment')}
           </button>
@@ -121,18 +120,14 @@ export const Appointments = () => {
                     <Skeleton key={i} className="h-20 w-full rounded-xl" />
                   ))}
                 </div>
-              ) : error ? (
-                <div className="p-6 text-center text-red-500">
-                  {t('appointments.failedToLoad')}
-                </div>
-              ) : appointments?.length === 0 ? (
+              ) : filteredAppointments.length === 0 ? (
                 <div className="p-12 text-center text-slate-500 flex flex-col items-center">
                   <CalendarIcon className="w-12 h-12 mb-4 text-slate-300" />
                   <p>{t('appointments.noAppointments')}</p>
                 </div>
               ) : (
                 <div className="divide-y divide-slate-100 dark:divide-slate-800">
-                  {appointments?.map(app => (
+                  {filteredAppointments.map(app => (
                     <div key={app.id} className="p-4 sm:p-6 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                       <div className="flex items-start gap-4">
                         <div className="bg-slate-100 dark:bg-slate-800 p-3 rounded-xl shrink-0">
@@ -145,7 +140,7 @@ export const Appointments = () => {
                           </h4>
                           <div className="flex flex-col sm:flex-row gap-1 sm:gap-4 mt-1 text-sm text-slate-500 dark:text-slate-400">
                             <span className="flex items-center gap-1 font-medium text-slate-700 dark:text-slate-300">
-                              <User className="w-3.5 h-3.5" /> {app.doctor}
+                              <User className="w-3.5 h-3.5" /> {app.doctorName}
                             </span>
                             <span className="hidden sm:inline">•</span>
                             <span>{app.type}</span>
@@ -153,7 +148,7 @@ export const Appointments = () => {
                         </div>
                       </div>
                       <div className="font-semibold text-slate-900 dark:text-white text-lg shrink-0 sm:text-right pl-14 sm:pl-0">
-                        {app.time}
+                        {app.appointmentTime}
                       </div>
                     </div>
                   ))}
@@ -163,6 +158,114 @@ export const Appointments = () => {
           </Card>
         </div>
       </div>
+
+      {isAddModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm" role="dialog" aria-modal="true" aria-labelledby="add-appointment-title">
+          <div className="bg-white dark:bg-slate-900 rounded-xl shadow-xl w-full max-w-md overflow-hidden border border-slate-200 dark:border-slate-800">
+            <div className="flex items-center justify-between p-6 border-b border-slate-100 dark:border-slate-800">
+              <h2 id="add-appointment-title" className="text-xl font-bold">New Appointment</h2>
+              <button 
+                onClick={() => setIsAddModalOpen(false)} 
+                className="text-slate-400 hover:text-slate-600"
+                aria-label="Close modal"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <form 
+              onSubmit={async (e) => {
+                e.preventDefault();
+                setIsBooking(true);
+                const res = await addAppointment({
+                  patientName: newAppointment.patientName,
+                  doctorName: newAppointment.doctorName,
+                  appointmentDate: format(selectedDate, 'yyyy-MM-dd'),
+                  appointmentTime: newAppointment.appointmentTime,
+                  type: newAppointment.type
+                });
+                setIsBooking(false);
+                
+                if (res.success) {
+                  toast.success('Appointment Booked Successfully');
+                  setIsAddModalOpen(false);
+                } else {
+                  toast.error('Booking Failed', {
+                    description: res.error,
+                    icon: <AlertCircle className="w-5 h-5 text-red-500" />
+                  });
+                }
+              }} 
+              className="p-6 space-y-4"
+            >
+              <div className="bg-sky-50 dark:bg-sky-900/20 p-3 rounded border border-sky-100 dark:border-sky-800 text-sm text-sky-800 dark:text-sky-300">
+                Booking for: <strong>{format(selectedDate, 'EEEE, MMMM do, yyyy')}</strong>
+              </div>
+              
+              <div className="space-y-1">
+                <label className="text-xs font-semibold text-slate-500 uppercase">Patient Name</label>
+                <input 
+                  required
+                  type="text" 
+                  value={newAppointment.patientName}
+                  onChange={e => setNewAppointment({...newAppointment, patientName: e.target.value})}
+                  className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-md text-sm outline-none focus:ring-2 focus:ring-sky-500/50" 
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-xs font-semibold text-slate-500 uppercase">Doctor</label>
+                <select 
+                  required
+                  value={newAppointment.doctorName}
+                  onChange={e => setNewAppointment({...newAppointment, doctorName: e.target.value})}
+                  className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-md text-sm outline-none focus:ring-2 focus:ring-sky-500/50"
+                >
+                  <option value="">Select Doctor...</option>
+                  {doctors.map(d => (
+                    <option key={d.id} value={d.name}>{d.name} ({d.department})</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-slate-500 uppercase">Time</label>
+                  <input 
+                    required
+                    type="time" 
+                    value={newAppointment.appointmentTime}
+                    onChange={e => setNewAppointment({...newAppointment, appointmentTime: e.target.value})}
+                    className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-md text-sm outline-none focus:ring-2 focus:ring-sky-500/50" 
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-slate-500 uppercase">Type</label>
+                  <select 
+                    value={newAppointment.type}
+                    onChange={e => setNewAppointment({...newAppointment, type: e.target.value})}
+                    className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-md text-sm outline-none focus:ring-2 focus:ring-sky-500/50"
+                  >
+                    <option value="Consultation">Consultation</option>
+                    <option value="Follow-up">Follow-up</option>
+                    <option value="Routine Check">Routine Check</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="pt-4 flex justify-end gap-3">
+                <button type="button" onClick={() => setIsAddModalOpen(false)} className="px-4 py-2 text-sm font-medium text-slate-600">Cancel</button>
+                <button 
+                  type="submit" 
+                  disabled={isBooking}
+                  className="px-4 py-2 bg-sky-600 text-white rounded-md text-sm font-medium hover:bg-sky-700 disabled:opacity-50"
+                >
+                  {isBooking ? 'Checking Conflicts...' : 'Book Appointment'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
