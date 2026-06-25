@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, Badge } from '../components/ui/core';
-import { UserCheck, Clock, ShieldAlert, Plus, Search, X, ArrowUpDown, Download, ChevronLeft, ChevronRight } from 'lucide-react';
+import { UserCheck, Clock, ShieldAlert, Plus, Search, X, ArrowUpDown, Download, ChevronLeft, ChevronRight, Pill } from 'lucide-react';
 import { format } from 'date-fns';
 import { PatientRecord } from '../types';
 import { toast } from 'sonner';
@@ -43,12 +43,36 @@ const patientSchema = z.object({
 type PatientFormValues = z.infer<typeof patientSchema>;
 
 export const Patients = () => {
-  const { patients, addPatient, addClinicalNote, isLoading, setIsLoading, user } = useStore();
+  const { patients, addPatient, addClinicalNote, isLoading, setIsLoading, user, pharmacyItems, prescriptions, addPrescription } = useStore();
   const { t } = useTranslation();
   const [searchQuery, setSearchQuery] = useState('');
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [selectedPatient, setSelectedPatient] = useState<PatientRecord | null>(null);
   const [newNote, setNewNote] = useState('');
+  
+  // E-Prescription State
+  const [newPrescription, setNewPrescription] = useState({
+    pharmacyItemId: '',
+    dosage: '',
+    frequency: '',
+    durationDays: 1,
+  });
+
+  const handleAddPrescription = () => {
+    if (!newPrescription.pharmacyItemId || !newPrescription.dosage || !newPrescription.frequency || !selectedPatient || !user) return;
+    
+    addPrescription({
+      patientId: selectedPatient.id,
+      doctorName: user.name,
+      pharmacyItemId: newPrescription.pharmacyItemId,
+      dosage: newPrescription.dosage,
+      frequency: newPrescription.frequency,
+      durationDays: newPrescription.durationDays,
+    });
+
+    setNewPrescription({ pharmacyItemId: '', dosage: '', frequency: '', durationDays: 1 });
+    toast.success('Prescription sent to pharmacy successfully');
+  };
 
   const handleAddNote = () => {
     if (!newNote.trim() || !selectedPatient || !user) return;
@@ -620,6 +644,80 @@ export const Patients = () => {
                       ))
                     ) : (
                       <p className="text-sm text-slate-500 italic">No progress notes recorded yet.</p>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <h3 className="text-sm font-bold border-b border-slate-100 dark:border-slate-800 pb-2 mb-3 flex items-center gap-2">
+                  <Pill className="w-4 h-4 text-sky-500" /> E-Prescriptions
+                </h3>
+                <div className="space-y-4">
+                  {(user?.role === 'Doctor' || user?.role === 'MedicalDirector') && (
+                    <div className="p-4 bg-sky-50 dark:bg-sky-900/10 border border-sky-100 dark:border-sky-900/30 rounded-lg space-y-3">
+                      <h4 className="text-xs font-bold text-sky-800 dark:text-sky-300 uppercase">New Prescription</h4>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <select 
+                          className="w-full px-3 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-md text-sm"
+                          value={newPrescription.pharmacyItemId}
+                          onChange={(e) => setNewPrescription({...newPrescription, pharmacyItemId: e.target.value})}
+                        >
+                          <option value="">Select Medication...</option>
+                          {pharmacyItems.filter(item => item.stockLevel > 0).map(item => (
+                            <option key={item.id} value={item.id}>{item.name} ({item.stockLevel} in stock)</option>
+                          ))}
+                        </select>
+                        <input 
+                          type="text" placeholder="Dosage (e.g., 500mg)" 
+                          className="w-full px-3 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-md text-sm"
+                          value={newPrescription.dosage}
+                          onChange={(e) => setNewPrescription({...newPrescription, dosage: e.target.value})}
+                        />
+                        <input 
+                          type="text" placeholder="Frequency (e.g., 1x Daily)" 
+                          className="w-full px-3 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-md text-sm"
+                          value={newPrescription.frequency}
+                          onChange={(e) => setNewPrescription({...newPrescription, frequency: e.target.value})}
+                        />
+                        <div className="flex items-center gap-2">
+                          <input 
+                            type="number" min="1" placeholder="Days" 
+                            className="w-full px-3 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-md text-sm"
+                            value={newPrescription.durationDays}
+                            onChange={(e) => setNewPrescription({...newPrescription, durationDays: parseInt(e.target.value) || 1})}
+                          />
+                          <button 
+                            onClick={handleAddPrescription}
+                            disabled={!newPrescription.pharmacyItemId || !newPrescription.dosage || !newPrescription.frequency}
+                            className="px-4 py-2 bg-sky-600 text-white rounded-md text-sm font-medium hover:bg-sky-700 disabled:opacity-50 whitespace-nowrap"
+                          >
+                            Send to Pharmacy
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                  
+                  <div className="space-y-2">
+                    {prescriptions.filter(p => p.patientId === selectedPatient.id).length > 0 ? (
+                      prescriptions.filter(p => p.patientId === selectedPatient.id).map(p => {
+                        const drug = pharmacyItems.find(i => i.id === p.pharmacyItemId);
+                        return (
+                          <div key={p.id} className="p-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-md flex justify-between items-center">
+                            <div>
+                              <p className="font-medium text-sm text-slate-800 dark:text-slate-200">{drug?.name || 'Unknown Drug'}</p>
+                              <p className="text-xs text-slate-500">{p.dosage} • {p.frequency} for {p.durationDays} days</p>
+                              <p className="text-[10px] text-slate-400 mt-1">Prescribed by {p.doctorName} on {format(new Date(p.date), 'MMM d, yyyy')}</p>
+                            </div>
+                            <Badge variant={p.status === 'Dispensed' ? 'success' : p.status === 'Pending' ? 'warning' : 'danger'}>
+                              {p.status}
+                            </Badge>
+                          </div>
+                        );
+                      })
+                    ) : (
+                      <p className="text-sm text-slate-500 italic">No prescriptions found.</p>
                     )}
                   </div>
                 </div>

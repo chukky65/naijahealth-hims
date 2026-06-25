@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, Badge } from '../components/ui/core';
-import { Package, AlertTriangle, TrendingDown, Plus, Search, X, ArrowUpDown, ChevronLeft, ChevronRight, Download } from 'lucide-react';
+import { Package, AlertTriangle, TrendingDown, Plus, Search, X, ArrowUpDown, ChevronLeft, ChevronRight, Download, Pill, CheckCircle } from 'lucide-react';
 import { PharmacyItem } from '../types';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -24,7 +24,7 @@ const pharmacySchema = z.object({
 type PharmacyFormValues = z.infer<typeof pharmacySchema>;
 
 export const Pharmacy = () => {
-  const { pharmacyItems: items, addPharmacyItem: saveItems, isLoading, setIsLoading, user } = useStore();
+  const { pharmacyItems: items, addPharmacyItem: saveItems, isLoading, setIsLoading, user, prescriptions, dispensePrescription, patients } = useStore();
   const [searchQuery, setSearchQuery] = useState('');
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
 
@@ -106,6 +106,16 @@ export const Pharmacy = () => {
 
   const totalPages = Math.ceil(filteredAndSortedItems.length / itemsPerPage);
   const lowStockItems = items.filter(item => item.stockLevel <= item.reorderLevel);
+  const pendingPrescriptions = prescriptions.filter(p => p.status === 'Pending');
+
+  const handleDispense = async (prescriptionId: string) => {
+    try {
+      await dispensePrescription(prescriptionId);
+      toast.success('Medication dispensed', { description: 'Stock updated and invoice generated.' });
+    } catch (error) {
+      toast.error('Dispensing failed', { description: 'Ensure you have permissions and item is in stock.' });
+    }
+  };
 
   const exportPDF = () => {
     const doc = new jsPDF();
@@ -222,6 +232,51 @@ export const Pharmacy = () => {
           </CardContent>
         </Card>
       </div>
+
+      {pendingPrescriptions.length > 0 && (
+        <Card className="border-sky-200 dark:border-sky-900 shadow-md">
+          <CardHeader className="bg-sky-50 dark:bg-sky-900/20 border-b border-sky-100 dark:border-sky-900/50">
+            <CardTitle className="flex items-center gap-2 text-sky-800 dark:text-sky-300">
+              <Pill className="w-5 h-5" /> Pending E-Prescriptions ({pendingPrescriptions.length})
+            </CardTitle>
+          </CardHeader>
+          <div className="divide-y divide-slate-100 dark:divide-slate-800 max-h-[300px] overflow-y-auto">
+            {pendingPrescriptions.map(p => {
+              const patient = patients.find(pat => pat.id === p.patientId);
+              const drug = items.find(i => i.id === p.pharmacyItemId);
+              return (
+                <div key={p.id} className="p-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 hover:bg-slate-50 dark:hover:bg-slate-800/20">
+                  <div>
+                    <h4 className="font-bold text-slate-900 dark:text-white">{drug?.name || 'Unknown Drug'}</h4>
+                    <p className="text-sm text-slate-600 dark:text-slate-300">
+                      {p.dosage} • {p.frequency} for {p.durationDays} days
+                    </p>
+                    <div className="flex gap-3 mt-2 text-xs text-slate-500">
+                      <span>Patient: <span className="font-medium text-slate-700 dark:text-slate-300">{patient?.name || 'Unknown'}</span></span>
+                      <span>Doctor: <span className="font-medium text-slate-700 dark:text-slate-300">{p.doctorName}</span></span>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <div className="text-right">
+                      <p className="text-xs text-slate-500 uppercase font-bold">Stock</p>
+                      <p className={`font-mono font-medium ${drug && drug.stockLevel > 0 ? 'text-green-600' : 'text-red-500'}`}>
+                        {drug?.stockLevel || 0}
+                      </p>
+                    </div>
+                    <button 
+                      onClick={() => handleDispense(p.id)}
+                      disabled={!drug || drug.stockLevel < 1}
+                      className="flex items-center gap-2 px-4 py-2 bg-sky-600 text-white rounded-md text-sm font-medium hover:bg-sky-700 disabled:opacity-50 transition-colors"
+                    >
+                      <CheckCircle className="w-4 h-4" /> Dispense & Bill
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </Card>
+      )}
 
       <Card>
         <CardHeader className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">

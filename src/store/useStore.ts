@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { PatientRecord, PharmacyItem, User, Invoice, StaffMember, ClinicalNote, PendingRegistration } from '../types';
+import { PatientRecord, PharmacyItem, User, Invoice, StaffMember, ClinicalNote, PendingRegistration, Prescription } from '../types';
 import { supabase } from '../lib/supabase';
 
 interface AppState {
@@ -19,6 +19,9 @@ interface AppState {
   approveRegistration: (id: string) => Promise<void>;
   rejectRegistration: (id: string) => Promise<void>;
   addClinicalNote: (patientId: string, note: Omit<ClinicalNote, 'id' | 'created_at'>) => Promise<void>;
+  prescriptions: Prescription[];
+  addPrescription: (prescription: Omit<Prescription, 'id' | 'date' | 'status'>) => Promise<void>;
+  dispensePrescription: (id: string) => Promise<void>;
   isLoading: boolean;
   setIsLoading: (loading: boolean) => void;
   user: User | null;
@@ -35,6 +38,7 @@ export const useStore = create<AppState>()(
       invoices: [],
       staff: [],
       pendingRegistrations: [],
+      prescriptions: [],
       theme: 'light',
       isLoading: false,
       user: null,
@@ -49,13 +53,15 @@ export const useStore = create<AppState>()(
             { data: pharmacyItems },
             { data: invoices },
             { data: staff },
-            { data: pendingRegistrations }
+            { data: pendingRegistrations },
+            { data: prescriptions }
           ] = await Promise.all([
             supabase.from('patients').select('*, clinical_notes(*)'),
             supabase.from('pharmacy_items').select('*'),
             supabase.from('invoices').select('*'),
             supabase.from('staff').select('*'),
             supabase.from('pending_registrations').select('*'),
+            supabase.from('prescriptions').select('*'),
           ]);
 
           set({
@@ -80,6 +86,10 @@ export const useStore = create<AppState>()(
             pendingRegistrations: (pendingRegistrations || []).map((r: any) => ({
               id: r.id, name: r.name, email: r.email, role: r.role,
               licenseNumber: r.license_number, requestReason: r.request_reason, date: r.date
+            })),
+            prescriptions: (prescriptions || []).map((p: any) => ({
+              id: p.id, patientId: p.patient_id, doctorName: p.doctor_name, pharmacyItemId: p.pharmacy_item_id,
+              dosage: p.dosage, frequency: p.frequency, durationDays: p.duration_days, status: p.status, date: p.created_at
             }))
           });
         } catch (error) {
@@ -180,6 +190,38 @@ export const useStore = create<AppState>()(
         }
       },
 
+      addPrescription: async (prescription) => {
+        const dbPrescription = {
+          patient_id: prescription.patientId,
+          doctor_name: prescription.doctorName,
+          pharmacy_item_id: prescription.pharmacyItemId,
+          dosage: prescription.dosage,
+          frequency: prescription.frequency,
+          duration_days: prescription.durationDays,
+          status: 'Pending'
+        };
+        const { data, error } = await supabase.from('prescriptions').insert([dbPrescription]).select().single();
+        if (!error && data) {
+          const newPrescription: Prescription = {
+            id: data.id, patientId: data.patient_id, doctorName: data.doctor_name,
+            pharmacyItemId: data.pharmacy_item_id, dosage: data.dosage, frequency: data.frequency,
+            durationDays: data.duration_days, status: data.status, date: data.created_at
+          };
+          set((state) => ({ prescriptions: [newPrescription, ...state.prescriptions] }));
+        }
+      },
+
+      dispensePrescription: async (id) => {
+        const { error } = await supabase.rpc('dispense_prescription', { p_id: id });
+        if (!error) {
+          // Re-fetch data to sync new stock level, invoice, and prescription status
+          get().fetchData();
+        } else {
+          console.error("Failed to dispense prescription:", error);
+          throw error;
+        }
+      },
+
       setIsLoading: (isLoading) => set({ isLoading }),
       
       login: (user) => {
@@ -193,7 +235,7 @@ export const useStore = create<AppState>()(
         if (state.isAuthenticated) {
           supabase.auth.signOut();
         }
-        set({ user: null, isAuthenticated: false, patients: [], pharmacyItems: [], invoices: [], staff: [], pendingRegistrations: [] });
+        set({ user: null, isAuthenticated: false, patients: [], pharmacyItems: [], invoices: [], staff: [], pendingRegistrations: [], prescriptions: [] });
       },
     }),
     {

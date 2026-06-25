@@ -60,6 +60,18 @@ export interface ClinicalNote {
   author: string;
 }
 
+export interface Prescription {
+  id: string;
+  patientId: string;
+  doctorName: string;
+  pharmacyItemId: string;
+  dosage: string;
+  frequency: string;
+  durationDays: number;
+  status: 'Pending' | 'Dispensed' | 'Cancelled';
+  date: string;
+}
+
 export interface PatientRecord {
   id: string;
   name: string;
