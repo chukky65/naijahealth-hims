@@ -1,7 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Search, Filter, Download, Clock, User, Activity } from 'lucide-react';
-import { useQuery } from '@tanstack/react-query';
-import { apiClient } from '../lib/apiClient';
 
 interface AuditEvent {
   id: string;
@@ -79,20 +77,17 @@ export const AuditLog = () => {
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
 
-  // Use react-query to fetch logs, falling back to mock data
-  const { data: logs, isLoading } = useQuery({
-    queryKey: ['audit-logs'],
-    queryFn: async () => {
-      try {
-        const response = await apiClient.get<AuditEvent[]>('/audit-logs');
-        return response.data;
-      } catch (error) {
-        console.warn('Failed to fetch audit logs, using mock data.');
-        return mockAuditLogs;
-      }
-    },
-    initialData: mockAuditLogs,
-  });
+  const [logs, setLogs] = useState<AuditEvent[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    // Simulate network delay for mock data
+    const timer = setTimeout(() => {
+      setLogs(mockAuditLogs);
+      setIsLoading(false);
+    }, 500);
+    return () => clearTimeout(timer);
+  }, []);
 
   const filteredLogs = logs?.filter(log => {
     const matchesSearch = log.action.toLowerCase().includes(searchQuery.toLowerCase()) ||

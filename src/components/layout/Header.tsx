@@ -1,12 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Bell, Search, User, Globe, Wifi, WifiOff } from 'lucide-react';
+import { Bell, Search, User, Globe, Wifi, WifiOff, Menu } from 'lucide-react';
 import { mockNigerianContext } from '../../data/mockData';
 import { cn } from '../../lib/utils';
 import { useStore } from '../../store/useStore';
 import { useTranslation } from 'react-i18next';
 
 export const Header = () => {
-  const { user } = useStore();
+  const { user, isMobileMenuOpen, setMobileMenuOpen } = useStore();
   const { i18n } = useTranslation();
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [isLangOpen, setIsLangOpen] = useState(false);
@@ -34,19 +34,27 @@ export const Header = () => {
   }, []);
 
   return (
-    <header className="h-16 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between px-8 sticky top-0 z-10 shrink-0">
-      <div className="flex items-center text-slate-500 bg-slate-100 dark:bg-slate-800 rounded-lg px-3 py-1.5 w-96 focus-within:ring-2 ring-sky-500/50">
-        <Search className="w-4 h-4 mr-2" />
-        <input
-          type="text"
-          placeholder="Search patient ID, department, or staff..."
-          aria-label="Search"
-          className="bg-transparent border-none outline-none w-full text-sm dark:text-slate-200"
-        />
+    <header className="h-16 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between px-4 sm:px-8 sticky top-0 z-10 shrink-0">
+      <div className="flex items-center gap-4">
+        <button 
+          onClick={() => setMobileMenuOpen(!isMobileMenuOpen)}
+          className="md:hidden p-2 -ml-2 text-slate-500 hover:text-slate-900 dark:hover:text-white rounded-lg focus:outline-none"
+        >
+          <Menu className="w-6 h-6" />
+        </button>
+        <div className="hidden sm:flex items-center text-slate-500 bg-slate-100 dark:bg-slate-800 rounded-lg px-3 py-1.5 w-64 md:w-96 focus-within:ring-2 ring-sky-500/50">
+          <Search className="w-4 h-4 mr-2" />
+          <input
+            type="text"
+            placeholder="Search..."
+            aria-label="Search"
+            className="bg-transparent border-none outline-none w-full text-sm dark:text-slate-200"
+          />
+        </div>
       </div>
 
-      <div className="flex items-center space-x-6">
-        <div className="flex items-center space-x-4 text-xs font-mono">
+      <div className="flex items-center space-x-2 sm:space-x-6">
+        <div className="hidden lg:flex items-center space-x-4 text-xs font-mono">
           <div className="flex items-center gap-1.5 px-3 py-1 bg-slate-50 dark:bg-slate-800/50 rounded-full border border-slate-200 dark:border-slate-700">
             {isOnline ? (
               <>
@@ -107,7 +115,7 @@ export const Header = () => {
           )}
         </div>
 
-        <button aria-label="Notifications" className="relative p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 border-l border-slate-200 dark:border-slate-800 pl-6">
+        <button aria-label="Notifications" className="relative p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 border-l border-slate-200 dark:border-slate-800 sm:pl-6">
           <Bell className="w-5 h-5" />
           <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full"></span>
         </button>

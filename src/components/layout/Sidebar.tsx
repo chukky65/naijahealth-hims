@@ -16,7 +16,7 @@ interface NavItem {
 
 export const Sidebar = () => {
   const navigate = useNavigate();
-  const { theme, setTheme, logout, user } = useStore();
+  const { theme, setTheme, logout, user, isMobileMenuOpen, setMobileMenuOpen } = useStore();
   const { t } = useTranslation();
   
   useEffect(() => {
@@ -54,15 +54,29 @@ export const Sidebar = () => {
   const visibleNavItems = allNavItems.filter((item) => user && item.roles.includes(user.role));
 
   return (
-    <div className="flex flex-col w-64 bg-slate-900 border-r border-slate-800 text-slate-300 min-h-screen shrink-0">
-      <div className="p-6 flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className="w-8 h-8 bg-sky-500 rounded flex items-center justify-center font-bold text-white shrink-0">
-            <Activity className="w-5 h-5 text-white" />
+    <>
+      {/* Mobile Backdrop */}
+      {isMobileMenuOpen && (
+        <div 
+          className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-40 md:hidden transition-opacity"
+          onClick={() => setMobileMenuOpen(false)}
+          aria-hidden="true"
+        />
+      )}
+      
+      {/* Sidebar */}
+      <div className={cn(
+        "flex flex-col w-64 bg-slate-900 border-r border-slate-800 text-slate-300 h-screen shrink-0 fixed inset-y-0 left-0 z-50 transform transition-transform duration-300 ease-in-out md:relative md:translate-x-0",
+        isMobileMenuOpen ? "translate-x-0" : "-translate-x-full"
+      )}>
+        <div className="p-6 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 bg-sky-500 rounded flex items-center justify-center font-bold text-white shrink-0">
+              <Activity className="w-5 h-5 text-white" />
+            </div>
+            <span className="font-bold text-lg tracking-tight text-white">N-HIMS Elite</span>
           </div>
-          <span className="font-bold text-lg tracking-tight text-white">N-HIMS Elite</span>
         </div>
-      </div>
       <nav className="flex-1 overflow-y-auto py-4">
         <div className="text-slate-500 text-[10px] uppercase font-bold tracking-widest mb-2 px-5">{t('nav.commandCenter')}</div>
         <ul className="space-y-1 px-4">
@@ -70,6 +84,7 @@ export const Sidebar = () => {
             <li key={item.path}>
               <NavLink
                 to={item.path}
+                onClick={() => setMobileMenuOpen(false)}
                 className={({ isActive }) =>
                   cn(
                     'flex items-center gap-3 px-3 py-2 rounded-md transition-colors text-sm border-l-2',
@@ -107,5 +122,6 @@ export const Sidebar = () => {
         </div>
       </div>
     </div>
+    </>
   );
 };

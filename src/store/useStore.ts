@@ -41,7 +41,9 @@ interface AppState {
   appointments: Appointment[];
   addAppointment: (appointment: Omit<Appointment, 'id' | 'date' | 'status' | 'durationMinutes'>) => Promise<{ success: boolean; error?: string }>;
   isLoading: boolean;
+  isMobileMenuOpen: boolean;
   setIsLoading: (loading: boolean) => void;
+  setMobileMenuOpen: (isOpen: boolean) => void;
   user: User | null;
   isAuthenticated: boolean;
   realtimeChannel: RealtimeChannel | null;
@@ -66,10 +68,14 @@ export const useStore = create<AppState>()(
       appointments: [],
       theme: 'light',
       isLoading: false,
+      isMobileMenuOpen: false,
       user: null,
       isAuthenticated: false,
       realtimeChannel: null,
+      
       setTheme: (theme) => set({ theme }),
+      setIsLoading: (loading) => set({ isLoading: loading }),
+      setMobileMenuOpen: (isOpen) => set({ isMobileMenuOpen: isOpen }),
       
       setupRealtimeSubscription: () => {
         const state = get();
@@ -408,8 +414,6 @@ export const useStore = create<AppState>()(
           return { success: false, error: data?.error || 'Double booking conflict detected' };
         }
       },
-
-      setIsLoading: (isLoading) => set({ isLoading }),
       
       login: (user) => {
         set({ user, isAuthenticated: true });
