@@ -59,7 +59,7 @@ export const Patients = () => {
     durationDays: 1,
   });
 
-  const handleAddPrescription = () => {
+  const handleAddPrescription = async () => {
     if (!newPrescription.pharmacyItemId || !newPrescription.dosage || !newPrescription.frequency || !selectedPatient || !user) return;
     
     // CLINICAL SAFETY CHECK: ALLERGY ALERT
@@ -78,17 +78,21 @@ export const Patients = () => {
       }
     }
 
-    addPrescription({
-      patientId: selectedPatient.id,
-      doctorName: user.name,
-      pharmacyItemId: newPrescription.pharmacyItemId,
-      dosage: newPrescription.dosage,
-      frequency: newPrescription.frequency,
-      durationDays: newPrescription.durationDays,
-    });
+    try {
+      await addPrescription({
+        patientId: selectedPatient.id,
+        doctorName: user.name,
+        pharmacyItemId: newPrescription.pharmacyItemId,
+        dosage: newPrescription.dosage,
+        frequency: newPrescription.frequency,
+        durationDays: newPrescription.durationDays,
+      });
 
-    setNewPrescription({ pharmacyItemId: '', dosage: '', frequency: '', durationDays: 1 });
-    toast.success('Prescription sent to pharmacy successfully');
+      setNewPrescription({ pharmacyItemId: '', dosage: '', frequency: '', durationDays: 1 });
+      toast.success('Prescription sent to pharmacy successfully');
+    } catch (error: any) {
+      toast.error('Failed to prescribe', { description: error.message || 'Ensure you have doctor permissions.' });
+    }
   };
 
   // Lab Order State
