@@ -1,10 +1,17 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Plus, Calendar, FileText, UserPlus, X } from 'lucide-react';
+import { useStore } from '../store/useStore';
+import { toast } from 'sonner';
 
 export const QuickActions = () => {
   const [isOpen, setIsOpen] = useState(false);
   const [activeModal, setActiveModal] = useState<string | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
+  const { addPatient, addAppointment, addPrescription } = useStore();
+
+  const [patientForm, setPatientForm] = useState({ firstName: '', lastName: '', dob: '', email: '', phone: '' });
+  const [aptForm, setAptForm] = useState({ patientName: '', datetime: '', reason: '' });
+  const [rxForm, setRxForm] = useState({ patientId: '', medicationName: '', dosage: '', instructions: '' });
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -17,6 +24,71 @@ export const QuickActions = () => {
       document.removeEventListener('mousedown', handleClickOutside);
     };
   }, []);
+
+  const handleCreate = async () => {
+    try {
+      if (activeModal === 'patient') {
+        if (!patientForm.firstName || !patientForm.lastName) {
+          toast.error("Please provide at least a first and last name.");
+          return;
+        }
+        const age = patientForm.dob ? new Date().getFullYear() - new Date(patientForm.dob).getFullYear() : 30;
+        await addPatient({
+          name: `${patientForm.firstName} ${patientForm.lastName}`,
+          age: age,
+          gender: 'Not Specified',
+          bloodGroup: 'Unknown',
+          genotype: 'Unknown',
+          paymentMethod: 'Out of Pocket',
+          diagnosis: 'Pending Assessment',
+          status: 'Outpatient',
+          department: 'General',
+          admissionDate: new Date().toISOString().split('T')[0],
+          contactInfo: `${patientForm.phone} | ${patientForm.email}`,
+          medicalHistory: '',
+          insuranceDetails: 'N/A'
+        });
+        toast.success('Patient created successfully!');
+      } else if (activeModal === 'appointment') {
+        if (!aptForm.patientName || !aptForm.datetime) {
+          toast.error("Please provide patient name and time.");
+          return;
+        }
+        const dt = new Date(aptForm.datetime);
+        await addAppointment({
+          patientName: aptForm.patientName,
+          doctorName: 'Unassigned',
+          appointmentDate: dt.toISOString().split('T')[0],
+          appointmentTime: dt.toTimeString().substring(0, 5),
+          type: 'Consultation'
+        });
+        toast.success('Appointment booked successfully!');
+      } else if (activeModal === 'prescription') {
+        if (!rxForm.patientId || !rxForm.medicationName) {
+          toast.error("Please provide patient ID and medication name.");
+          return;
+        }
+        await addPrescription({
+          patientId: rxForm.patientId,
+          doctorName: 'Current User', // Normally pulled from session
+          pharmacyItemId: 'P-GEN-1', // Default generic item
+          dosage: rxForm.dosage || 'Standard',
+          frequency: rxForm.instructions || 'As directed',
+          durationDays: 7
+        });
+        toast.success('Prescription created successfully!');
+      }
+      
+      setActiveModal(null);
+      // Reset forms
+      setPatientForm({ firstName: '', lastName: '', dob: '', email: '', phone: '' });
+      setAptForm({ patientName: '', datetime: '', reason: '' });
+      setRxForm({ patientId: '', medicationName: '', dosage: '', instructions: '' });
+      
+    } catch (error) {
+      toast.error('An error occurred during creation.');
+    }
+  };
 
   const actions = [
     {
@@ -113,30 +185,30 @@ export const QuickActions = () => {
               
               {activeModal === 'appointment' && (
                 <div className="space-y-3">
-                  <input type="text" placeholder="Patient Name" className="w-full px-3 py-2 border border-slate-200 dark:border-slate-700 rounded-lg bg-transparent text-sm" />
-                  <input type="datetime-local" className="w-full px-3 py-2 border border-slate-200 dark:border-slate-700 rounded-lg bg-transparent text-sm" />
-                  <textarea placeholder="Reason for visit" className="w-full px-3 py-2 border border-slate-200 dark:border-slate-700 rounded-lg bg-transparent text-sm h-20"></textarea>
+                  <input type="text" placeholder="Patient Name" value={aptForm.patientName} onChange={e => setAptForm({...aptForm, patientName: e.target.value})} className="w-full px-3 py-2 border border-slate-200 dark:border-slate-700 rounded-lg bg-transparent text-sm" />
+                  <input type="datetime-local" value={aptForm.datetime} onChange={e => setAptForm({...aptForm, datetime: e.target.value})} className="w-full px-3 py-2 border border-slate-200 dark:border-slate-700 rounded-lg bg-transparent text-sm dark:[color-scheme:dark]" />
+                  <textarea placeholder="Reason for visit" value={aptForm.reason} onChange={e => setAptForm({...aptForm, reason: e.target.value})} className="w-full px-3 py-2 border border-slate-200 dark:border-slate-700 rounded-lg bg-transparent text-sm h-20"></textarea>
                 </div>
               )}
 
               {activeModal === 'prescription' && (
                 <div className="space-y-3">
-                  <input type="text" placeholder="Patient ID" className="w-full px-3 py-2 border border-slate-200 dark:border-slate-700 rounded-lg bg-transparent text-sm" />
-                  <input type="text" placeholder="Medication Name" className="w-full px-3 py-2 border border-slate-200 dark:border-slate-700 rounded-lg bg-transparent text-sm" />
-                  <input type="text" placeholder="Dosage" className="w-full px-3 py-2 border border-slate-200 dark:border-slate-700 rounded-lg bg-transparent text-sm" />
-                  <textarea placeholder="Instructions" className="w-full px-3 py-2 border border-slate-200 dark:border-slate-700 rounded-lg bg-transparent text-sm h-20"></textarea>
+                  <input type="text" placeholder="Patient ID" value={rxForm.patientId} onChange={e => setRxForm({...rxForm, patientId: e.target.value})} className="w-full px-3 py-2 border border-slate-200 dark:border-slate-700 rounded-lg bg-transparent text-sm" />
+                  <input type="text" placeholder="Medication Name" value={rxForm.medicationName} onChange={e => setRxForm({...rxForm, medicationName: e.target.value})} className="w-full px-3 py-2 border border-slate-200 dark:border-slate-700 rounded-lg bg-transparent text-sm" />
+                  <input type="text" placeholder="Dosage" value={rxForm.dosage} onChange={e => setRxForm({...rxForm, dosage: e.target.value})} className="w-full px-3 py-2 border border-slate-200 dark:border-slate-700 rounded-lg bg-transparent text-sm" />
+                  <textarea placeholder="Instructions" value={rxForm.instructions} onChange={e => setRxForm({...rxForm, instructions: e.target.value})} className="w-full px-3 py-2 border border-slate-200 dark:border-slate-700 rounded-lg bg-transparent text-sm h-20"></textarea>
                 </div>
               )}
 
               {activeModal === 'patient' && (
                 <div className="space-y-3">
                   <div className="flex gap-3">
-                    <input type="text" placeholder="First Name" className="w-full px-3 py-2 border border-slate-200 dark:border-slate-700 rounded-lg bg-transparent text-sm" />
-                    <input type="text" placeholder="Last Name" className="w-full px-3 py-2 border border-slate-200 dark:border-slate-700 rounded-lg bg-transparent text-sm" />
+                    <input type="text" placeholder="First Name" value={patientForm.firstName} onChange={e => setPatientForm({...patientForm, firstName: e.target.value})} className="w-full px-3 py-2 border border-slate-200 dark:border-slate-700 rounded-lg bg-transparent text-sm" />
+                    <input type="text" placeholder="Last Name" value={patientForm.lastName} onChange={e => setPatientForm({...patientForm, lastName: e.target.value})} className="w-full px-3 py-2 border border-slate-200 dark:border-slate-700 rounded-lg bg-transparent text-sm" />
                   </div>
-                  <input type="date" placeholder="Date of Birth" className="w-full px-3 py-2 border border-slate-200 dark:border-slate-700 rounded-lg bg-transparent text-sm text-slate-500" />
-                  <input type="email" placeholder="Email Address" className="w-full px-3 py-2 border border-slate-200 dark:border-slate-700 rounded-lg bg-transparent text-sm" />
-                  <input type="tel" placeholder="Phone Number" className="w-full px-3 py-2 border border-slate-200 dark:border-slate-700 rounded-lg bg-transparent text-sm" />
+                  <input type="date" placeholder="Date of Birth" value={patientForm.dob} onChange={e => setPatientForm({...patientForm, dob: e.target.value})} className="w-full px-3 py-2 border border-slate-200 dark:border-slate-700 rounded-lg bg-transparent text-sm text-slate-500 dark:[color-scheme:dark]" />
+                  <input type="email" placeholder="Email Address" value={patientForm.email} onChange={e => setPatientForm({...patientForm, email: e.target.value})} className="w-full px-3 py-2 border border-slate-200 dark:border-slate-700 rounded-lg bg-transparent text-sm" />
+                  <input type="tel" placeholder="Phone Number" value={patientForm.phone} onChange={e => setPatientForm({...patientForm, phone: e.target.value})} className="w-full px-3 py-2 border border-slate-200 dark:border-slate-700 rounded-lg bg-transparent text-sm" />
                 </div>
               )}
 
@@ -149,7 +221,7 @@ export const QuickActions = () => {
                 Cancel
               </button>
               <button 
-                onClick={() => setActiveModal(null)}
+                onClick={handleCreate}
                 className="px-4 py-2 text-sm font-medium text-white bg-sky-500 hover:bg-sky-600 rounded-lg transition-colors"
               >
                 Create
