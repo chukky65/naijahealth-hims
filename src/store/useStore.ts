@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { PatientRecord, PharmacyItem, User, Invoice, StaffMember, ClinicalNote, PendingRegistration, Prescription, LabTest, LabOrder, Appointment } from '../types';
 import { supabase } from '../lib/supabase';
+import { RealtimeChannel } from '@supabase/supabase-js';
 
 interface AppState {
   patients: PatientRecord[];
@@ -33,6 +34,8 @@ interface AppState {
   setIsLoading: (loading: boolean) => void;
   user: User | null;
   isAuthenticated: boolean;
+  realtimeChannel: RealtimeChannel | null;
+  setupRealtimeSubscription: () => void;
   login: (user: User) => void;
   logout: () => void;
 }
@@ -53,8 +56,29 @@ export const useStore = create<AppState>()(
       isLoading: false,
       user: null,
       isAuthenticated: false,
+      realtimeChannel: null,
       setTheme: (theme) => set({ theme }),
       
+      setupRealtimeSubscription: () => {
+        const state = get();
+        if (state.realtimeChannel) return; // Already subscribed
+
+        const channel = supabase.channel('hims-db-changes')
+          .on(
+            'postgres_changes',
+            { event: '*', schema: 'public' },
+            (payload) => {
+              console.log('Realtime event received:', payload);
+              // Simply refresh all data when any change happens in the database.
+              // In a heavy production app, this would be debounced or granularly mapped.
+              get().fetchData();
+            }
+          )
+          .subscribe();
+
+        set({ realtimeChannel: channel });
+      },
+
       fetchData: async () => {
         set({ isLoading: true });
         try {
@@ -317,6 +341,7 @@ export const useStore = create<AppState>()(
         set({ user, isAuthenticated: true });
         // Fetch data upon successful login
         get().fetchData();
+        get().setupRealtimeSubscription();
       },
       
       logout: () => {
@@ -324,7 +349,10 @@ export const useStore = create<AppState>()(
         if (state.isAuthenticated) {
           supabase.auth.signOut();
         }
-        set({ user: null, isAuthenticated: false, patients: [], pharmacyItems: [], invoices: [], staff: [], pendingRegistrations: [], prescriptions: [], labTests: [], labOrders: [], appointments: [] });
+        if (state.realtimeChannel) {
+          state.realtimeChannel.unsubscribe();
+        }
+        set({ user: null, isAuthenticated: false, patients: [], pharmacyItems: [], invoices: [], staff: [], pendingRegistrations: [], prescriptions: [], labTests: [], labOrders: [], appointments: [], realtimeChannel: null });
       },
     }),
     {
