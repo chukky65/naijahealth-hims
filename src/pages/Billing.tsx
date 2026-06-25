@@ -1,9 +1,8 @@
 import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, Badge } from '../components/ui/core';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useStore } from '../store/useStore';
 import { Search, Plus, Filter, Download, Receipt, CreditCard, Banknote, X } from 'lucide-react';
 import { format } from 'date-fns';
-import { useStore } from '../store/useStore';
 import { Invoice } from '../types';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -13,8 +12,6 @@ import { useTranslation } from 'react-i18next';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
-import { apiClient } from '../lib/apiClient';
-
 const invoiceSchema = z.object({
   patientName: z.string().min(2, "Patient Name is required"),
   amount: z.coerce.number().min(1, "Amount must be a valid positive number"),
@@ -23,22 +20,13 @@ const invoiceSchema = z.object({
 });
 type InvoiceFormValues = z.infer<typeof invoiceSchema>;
 
-const fetchInvoices = async () => {
-  const response = await apiClient.get<Invoice[]>('/invoices');
-  return response.data;
-};
+
 
 export const Billing = () => {
   const { t } = useTranslation();
   const [searchQuery, setSearchQuery] = useState('');
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
-  const { user } = useStore();
-  const queryClient = useQueryClient();
-  
-  const { data: invoices, isLoading } = useQuery({
-    queryKey: ['invoices'],
-    queryFn: fetchInvoices
-  });
+  const { user, invoices, addInvoice, isLoading } = useStore();
 
   const { register, handleSubmit, reset, formState: { errors } } = useForm<InvoiceFormValues>({
     resolver: zodResolver(invoiceSchema) as any,
@@ -48,47 +36,19 @@ export const Billing = () => {
     }
   });
 
-  const mutation = useMutation({
-    mutationFn: async (newInvoice: InvoiceFormValues) => {
-      const response = await apiClient.post<Invoice>('/invoices', newInvoice);
-      return response.data;
-    },
-    onMutate: async (newInvoice) => {
-      await queryClient.cancelQueries({ queryKey: ['invoices'] });
-      const previousInvoices = queryClient.getQueryData<Invoice[]>(['invoices']);
-      
-      const optimisticInvoice: Invoice = {
-        id: `INV-TEMP-${Date.now()}`,
-        date: new Date().toISOString(),
-        ...newInvoice,
-      };
-
-      queryClient.setQueryData<Invoice[]>(['invoices'], (old) => {
-        return [...(old || []), optimisticInvoice];
-      });
-
-      return { previousInvoices };
-    },
-    onError: (err, newInvoice, context) => {
-      if (context?.previousInvoices) {
-        queryClient.setQueryData(['invoices'], context.previousInvoices);
-      }
-      // Error toast is handled globally by apiClient interceptor
-    },
-    onSuccess: (data) => {
-      toast.success('Invoice Created Successfully', {
-        description: `Invoice ${data.id} generated for ${data.patientName}`
-      });
-      setIsAddModalOpen(false);
-      reset();
-    },
-    onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: ['invoices'] });
-    }
-  });
-
-  const handleCreateInvoice = (data: InvoiceFormValues) => {
-    mutation.mutate(data);
+  const handleCreateInvoice = async (data: InvoiceFormValues) => {
+    await addInvoice({
+      patientName: data.patientName,
+      amount: data.amount,
+      type: data.type,
+      status: data.status,
+      date: new Date().toISOString()
+    });
+    toast.success('Invoice Created Successfully', {
+      description: `Invoice generated for ${data.patientName}`
+    });
+    setIsAddModalOpen(false);
+    reset();
   };
 
   const filteredInvoices = invoices?.filter(inv => 
