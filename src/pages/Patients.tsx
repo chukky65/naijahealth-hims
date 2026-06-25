@@ -43,9 +43,10 @@ const patientSchema = z.object({
 type PatientFormValues = z.infer<typeof patientSchema>;
 
 export const Patients = () => {
-  const { patients, addPatient, addClinicalNote, isLoading, setIsLoading, user, pharmacyItems, prescriptions, addPrescription, labTests, labOrders, addLabOrder } = useStore();
+  const { patients, patientStats, fetchPatients, addPatient, addClinicalNote, isLoading, setIsLoading, user, pharmacyItems, prescriptions, addPrescription, labTests, labOrders, addLabOrder } = useStore();
   const { t } = useTranslation();
   const [searchQuery, setSearchQuery] = useState('');
+  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [selectedPatient, setSelectedPatient] = useState<PatientRecord | null>(null);
   const [newNote, setNewNote] = useState('');
@@ -138,6 +139,20 @@ export const Patients = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 8;
 
+  // Debounce search query
+  React.useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedSearchQuery(searchQuery);
+      setCurrentPage(1); // Reset to first page on new search
+    }, 500);
+    return () => clearTimeout(handler);
+  }, [searchQuery]);
+
+  // Fetch paginated patients
+  React.useEffect(() => {
+    fetchPatients(currentPage, debouncedSearchQuery, itemsPerPage, sortConfig?.key, sortConfig?.direction === 'asc');
+  }, [currentPage, debouncedSearchQuery, sortConfig, fetchPatients]);
+
   const { register, handleSubmit, reset, formState: { errors } } = useForm<PatientFormValues>({
     resolver: zodResolver(patientSchema) as any,
     defaultValues: {
@@ -173,37 +188,15 @@ export const Patients = () => {
     setSortConfig({ key, direction });
   };
 
-  const filteredAndSortedPatients = useMemo(() => {
-    let result = patients.filter(p => 
-      p.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
-      p.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      p.diagnosis.toLowerCase().includes(searchQuery.toLowerCase())
-    );
-
-    if (sortConfig !== null) {
-      result.sort((a, b) => {
-        if (a[sortConfig.key]! < b[sortConfig.key]!) return sortConfig.direction === 'asc' ? -1 : 1;
-        if (a[sortConfig.key]! > b[sortConfig.key]!) return sortConfig.direction === 'asc' ? 1 : -1;
-        return 0;
-      });
-    }
-    return result;
-  }, [patients, searchQuery, sortConfig]);
-
-  const currentPatients = useMemo(() => {
-    const start = (currentPage - 1) * itemsPerPage;
-    return filteredAndSortedPatients.slice(start, start + itemsPerPage);
-  }, [filteredAndSortedPatients, currentPage]);
-
-  const totalPages = Math.ceil(filteredAndSortedPatients.length / itemsPerPage);
+  const totalPages = Math.ceil(patientStats.total / itemsPerPage);
 
   const exportPDF = () => {
     const doc = new jsPDF();
-    doc.text('Patient Registry Report', 14, 15);
+    doc.text('Patient Registry Report (Current Page)', 14, 15);
     autoTable(doc, {
       startY: 20,
       head: [['ID', 'Name', 'Age/Gender', 'Diagnosis', 'Department', 'Status']],
-      body: filteredAndSortedPatients.map(p => [
+      body: patients.map(p => [
         p.id, p.name, `${p.age}/${p.gender}`, p.diagnosis, p.department, p.status
       ]),
     });
@@ -280,7 +273,7 @@ export const Patients = () => {
             </div>
             <div>
               <p className="text-sm font-medium text-slate-500">{t('patients.activeInpatients')}</p>
-              <h3 className="text-2xl font-bold">{patients.filter(p => p.status === 'Inpatient').length}</h3>
+              <h3 className="text-2xl font-bold">{patientStats.inpatient}</h3>
             </div>
           </CardContent>
         </Card>
@@ -291,7 +284,7 @@ export const Patients = () => {
             </div>
             <div>
               <p className="text-sm font-medium text-slate-500">{t('patients.outpatientQueue')}</p>
-              <h3 className="text-2xl font-bold">{patients.filter(p => p.status === 'Outpatient').length}</h3>
+              <h3 className="text-2xl font-bold">{patientStats.outpatient}</h3>
             </div>
           </CardContent>
         </Card>
@@ -302,7 +295,7 @@ export const Patients = () => {
             </div>
             <div>
               <p className="text-sm font-medium text-slate-500">{t('patients.criticalEmergency')}</p>
-              <h3 className="text-2xl font-bold">{patients.filter(p => p.department === 'Emergency').length}</h3>
+              <h3 className="text-2xl font-bold">{patientStats.emergency}</h3>
             </div>
           </CardContent>
         </Card>
@@ -368,7 +361,7 @@ export const Patients = () => {
               </tr>
             </thead>
             <tbody>
-              {currentPatients.map((patient) => (
+              {patients.map((patient) => (
                 <tr 
                   key={patient.id} 
                   tabIndex={0}
@@ -410,7 +403,7 @@ export const Patients = () => {
                   </td>
                 </tr>
               ))}
-              {currentPatients.length === 0 && (
+              {patients.length === 0 && !isLoading && (
                 <tr>
                   <td colSpan={6} className="px-6 py-8 text-center text-slate-500">
                     No patients found matching "{searchQuery}"
@@ -422,7 +415,7 @@ export const Patients = () => {
         </div>
         <div className="p-4 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between">
           <p className="text-sm text-slate-500">
-            Showing {((currentPage - 1) * itemsPerPage) + 1} to {Math.min(currentPage * itemsPerPage, filteredAndSortedPatients.length)} of {filteredAndSortedPatients.length} patients
+            Showing {Math.min(((currentPage - 1) * itemsPerPage) + 1, patientStats.total)} to {Math.min(currentPage * itemsPerPage, patientStats.total)} of {patientStats.total} patients
           </p>
           <div className="flex items-center gap-1 text-sm">
             <button 

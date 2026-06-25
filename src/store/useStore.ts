@@ -4,8 +4,18 @@ import { PatientRecord, PharmacyItem, User, Invoice, StaffMember, ClinicalNote, 
 import { supabase } from '../lib/supabase';
 import { RealtimeChannel } from '@supabase/supabase-js';
 
+interface PatientStats {
+  total: number;
+  inpatient: number;
+  outpatient: number;
+  emergency: number;
+}
+
 interface AppState {
   patients: PatientRecord[];
+  patientStats: PatientStats;
+  lastFetchPatientsParams: { page: number, searchQuery: string, limit: number, sortBy?: keyof PatientRecord, sortAsc?: boolean } | null;
+  fetchPatients: (page: number, searchQuery: string, limit: number, sortBy?: keyof PatientRecord, sortAsc?: boolean) => Promise<void>;
   pharmacyItems: PharmacyItem[];
   invoices: Invoice[];
   staff: StaffMember[];
@@ -44,6 +54,8 @@ export const useStore = create<AppState>()(
   persist(
     (set, get) => ({
       patients: [],
+      patientStats: { total: 0, inpatient: 0, outpatient: 0, emergency: 0 },
+      lastFetchPatientsParams: null,
       pharmacyItems: [],
       invoices: [],
       staff: [],
@@ -70,8 +82,12 @@ export const useStore = create<AppState>()(
             (payload) => {
               console.log('Realtime event received:', payload);
               // Simply refresh all data when any change happens in the database.
-              // In a heavy production app, this would be debounced or granularly mapped.
               get().fetchData();
+              // Also refresh current page of patients if applicable
+              const params = get().lastFetchPatientsParams;
+              if (params) {
+                get().fetchPatients(params.page, params.searchQuery, params.limit, params.sortBy, params.sortAsc);
+              }
             }
           )
           .subscribe();
@@ -83,7 +99,6 @@ export const useStore = create<AppState>()(
         set({ isLoading: true });
         try {
           const [
-            { data: patients },
             { data: pharmacyItems },
             { data: invoices },
             { data: staff },
@@ -91,9 +106,14 @@ export const useStore = create<AppState>()(
             { data: prescriptions },
             { data: labTests },
             { data: labOrders },
-            { data: appointments }
+            { data: appointments },
+            
+            // Patient Stats
+            { count: total },
+            { count: inpatient },
+            { count: outpatient },
+            { count: emergency }
           ] = await Promise.all([
-            supabase.from('patients').select('*, clinical_notes(*)'),
             supabase.from('pharmacy_items').select('*'),
             supabase.from('invoices').select('*'),
             supabase.from('staff').select('*'),
@@ -102,18 +122,20 @@ export const useStore = create<AppState>()(
             supabase.from('lab_tests').select('*'),
             supabase.from('lab_orders').select('*'),
             supabase.from('appointments').select('*'),
+            
+            supabase.from('patients').select('id', { count: 'exact', head: true }),
+            supabase.from('patients').select('id', { count: 'exact', head: true }).eq('status', 'Inpatient'),
+            supabase.from('patients').select('id', { count: 'exact', head: true }).eq('status', 'Outpatient'),
+            supabase.from('patients').select('id', { count: 'exact', head: true }).eq('department', 'Emergency'),
           ]);
 
           set({
-            patients: (patients || []).map((p: any) => ({
-              id: p.id, name: p.name, age: p.age, gender: p.gender, bloodGroup: p.blood_group,
-              genotype: p.genotype, paymentMethod: p.payment_method, diagnosis: p.diagnosis,
-              status: p.status, department: p.department, admissionDate: p.admission_date,
-              contactInfo: p.contact_info, medicalHistory: p.medical_history, insuranceDetails: p.insurance_details,
-              clinicalNotes: p.clinical_notes ? p.clinical_notes.map((n: any) => ({
-                id: n.id, date: n.date, note: n.note, author: n.author
-              })) : []
-            })),
+            patientStats: {
+              total: total || 0,
+              inpatient: inpatient || 0,
+              outpatient: outpatient || 0,
+              emergency: emergency || 0
+            },
             pharmacyItems: (pharmacyItems || []).map((i: any) => ({
               id: i.id, name: i.name, category: i.category, stockLevel: i.stock_level,
               reorderLevel: i.reorder_level, expiryDate: i.expiry_date, unitPrice: i.unit_price,
@@ -145,6 +167,58 @@ export const useStore = create<AppState>()(
           });
         } catch (error) {
           console.error("Error fetching data:", error);
+        } finally {
+          set({ isLoading: false });
+        }
+      },
+
+      fetchPatients: async (page, searchQuery, limit, sortBy, sortAsc = true) => {
+        set({ isLoading: true, lastFetchPatientsParams: { page, searchQuery, limit, sortBy, sortAsc } });
+        try {
+          const from = (page - 1) * limit;
+          const to = from + limit - 1;
+
+          let query = supabase.from('patients').select('*, clinical_notes(*)', { count: 'exact' });
+
+          if (searchQuery) {
+             query = query.or(`name.ilike.%${searchQuery}%,id.ilike.%${searchQuery}%,diagnosis.ilike.%${searchQuery}%`);
+          }
+
+          if (sortBy) {
+            // Need to map frontend keys to DB columns
+            const columnMap: Record<string, string> = {
+              bloodGroup: 'blood_group', paymentMethod: 'payment_method', admissionDate: 'admission_date',
+              contactInfo: 'contact_info', medicalHistory: 'medical_history', insuranceDetails: 'insurance_details'
+            };
+            const col = columnMap[sortBy] || sortBy;
+            query = query.order(col, { ascending: sortAsc });
+          } else {
+             query = query.order('created_at', { ascending: false });
+          }
+
+          query = query.range(from, to);
+          
+          const { data: patients, count, error } = await query;
+          
+          if (!error && patients) {
+            set((state) => ({
+              patients: patients.map((p: any) => ({
+                id: p.id, name: p.name, age: p.age, gender: p.gender, bloodGroup: p.blood_group,
+                genotype: p.genotype, paymentMethod: p.payment_method, diagnosis: p.diagnosis,
+                status: p.status, department: p.department, admissionDate: p.admission_date,
+                contactInfo: p.contact_info, medicalHistory: p.medical_history, insuranceDetails: p.insurance_details,
+                clinicalNotes: p.clinical_notes ? p.clinical_notes.map((n: any) => ({
+                  id: n.id, date: n.date, note: n.note, author: n.author
+                })) : []
+              })),
+              // Update total for pagination, but keep other stats intact if no search
+              patientStats: searchQuery 
+                ? { ...state.patientStats, total: count || 0 }
+                : { ...state.patientStats, total: count || state.patientStats.total }
+            }));
+          }
+        } catch (error) {
+           console.error("Error fetching patients:", error);
         } finally {
           set({ isLoading: false });
         }
