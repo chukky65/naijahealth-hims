@@ -118,6 +118,9 @@ export interface HospitalSettings {
   phone: string;
   email: string;
   currency: string;
+  nhia_api_key?: string;
+  nhia_facility_id?: string;
+  nhia_environment?: 'sandbox' | 'production';
   updated_at?: string;
 }
 

@@ -19,6 +19,12 @@ export const Settings = () => {
   });
   const [isSavingHospital, setIsSavingHospital] = useState(false);
 
+  // API Keys State
+  const [apiForm, setApiForm] = useState({
+    nhia_api_key: '', nhia_facility_id: '', nhia_environment: 'sandbox' as 'sandbox' | 'production'
+  });
+  const [isSavingApi, setIsSavingApi] = useState(false);
+
   // Security State
   const [passwordForm, setPasswordForm] = useState({ newPassword: '', confirmPassword: '' });
   const [isSavingSecurity, setIsSavingSecurity] = useState(false);
@@ -54,6 +60,11 @@ export const Settings = () => {
         phone: hospitalSettings.phone || '',
         email: hospitalSettings.email || '',
         currency: hospitalSettings.currency || '₦'
+      });
+      setApiForm({
+        nhia_api_key: hospitalSettings.nhia_api_key || '',
+        nhia_facility_id: hospitalSettings.nhia_facility_id || '',
+        nhia_environment: hospitalSettings.nhia_environment || 'sandbox'
       });
     }
   }, [hospitalSettings]);
@@ -112,6 +123,17 @@ export const Settings = () => {
       toast.success('Notification preferences updated');
     } else {
       toast.error('Failed to update notifications', { description: res.error });
+    }
+  };
+
+  const handleSaveApi = async () => {
+    setIsSavingApi(true);
+    const res = await updateHospitalSettings(apiForm);
+    setIsSavingApi(false);
+    if (res.success) {
+      toast.success('NHIA API configuration saved');
+    } else {
+      toast.error('Failed to save API configuration', { description: res.error });
     }
   };
 
@@ -369,7 +391,60 @@ export const Settings = () => {
             </Card>
           )}
 
-          {activeTab !== 'profile' && activeTab !== 'hospital' && activeTab !== 'security' && activeTab !== 'notifications' && (
+          {activeTab === 'api' && (
+            <Card>
+              <CardHeader>
+                <CardTitle>NHIA API Integration</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-slate-500 uppercase">Environment</label>
+                  <select
+                    value={apiForm.nhia_environment}
+                    onChange={e => setApiForm({...apiForm, nhia_environment: e.target.value as 'sandbox' | 'production'})}
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-md text-sm outline-none focus:ring-2 focus:ring-sky-500/50"
+                  >
+                    <option value="sandbox">Sandbox (Testing)</option>
+                    <option value="production">Production (Live)</option>
+                  </select>
+                </div>
+                
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-slate-500 uppercase">NHIA Facility ID</label>
+                  <input 
+                    type="text" 
+                    value={apiForm.nhia_facility_id}
+                    onChange={e => setApiForm({...apiForm, nhia_facility_id: e.target.value})}
+                    placeholder="e.g. NHIA/FAC/2023/1234"
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-md text-sm outline-none focus:ring-2 focus:ring-sky-500/50" 
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-slate-500 uppercase">API Key / Secret</label>
+                  <input 
+                    type="password" 
+                    value={apiForm.nhia_api_key}
+                    onChange={e => setApiForm({...apiForm, nhia_api_key: e.target.value})}
+                    placeholder="Enter your NHIA API key..."
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-md text-sm outline-none focus:ring-2 focus:ring-sky-500/50" 
+                  />
+                </div>
+
+                <div className="pt-4 flex justify-between items-center border-t border-slate-100 dark:border-slate-800">
+                  <button className="px-4 py-2 text-sm font-medium text-emerald-600 hover:text-emerald-700 bg-emerald-50 hover:bg-emerald-100 rounded-md transition-colors">
+                    Test Connection
+                  </button>
+                  <button onClick={handleSaveApi} disabled={isSavingApi} className="px-4 py-2 bg-sky-600 text-white rounded-md text-sm font-medium hover:bg-sky-700 flex items-center gap-2 disabled:opacity-50 transition-colors">
+                    {isSavingApi ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />} 
+                    Save Integration
+                  </button>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {activeTab !== 'profile' && activeTab !== 'hospital' && activeTab !== 'security' && activeTab !== 'notifications' && activeTab !== 'api' && (
             <Card>
               <CardContent className="h-64 flex flex-col items-center justify-center text-slate-400">
                 <div className="w-16 h-16 bg-slate-50 dark:bg-slate-800 rounded-full flex items-center justify-center mb-4">
