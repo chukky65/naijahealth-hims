@@ -65,7 +65,8 @@ export default function App() {
                 id: profile.id,
                 name: profile.name,
                 role: profile.role as any,
-                email: profile.email
+                email: profile.email,
+                notificationPreferences: profile.notification_preferences
               });
             }
           });
@@ -84,7 +85,8 @@ export default function App() {
                 id: profile.id,
                 name: profile.name,
                 role: profile.role as any,
-                email: profile.email
+                email: profile.email,
+                notificationPreferences: profile.notification_preferences
               });
             }
           });

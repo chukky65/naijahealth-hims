@@ -36,7 +36,7 @@ export const QuickActions = () => {
         await addPatient({
           name: `${patientForm.firstName} ${patientForm.lastName}`,
           age: age,
-          gender: 'Not Specified',
+          gender: 'M',
           bloodGroup: 'Unknown',
           genotype: 'Unknown',
           paymentMethod: 'Out of Pocket',
@@ -74,7 +74,8 @@ export const QuickActions = () => {
           pharmacyItemId: 'P-GEN-1', // Default generic item
           dosage: rxForm.dosage || 'Standard',
           frequency: rxForm.instructions || 'As directed',
-          durationDays: 7
+          durationDays: 7,
+          quantity: 1
         });
         toast.success('Prescription created successfully!');
       }

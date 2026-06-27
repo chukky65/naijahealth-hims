@@ -209,7 +209,7 @@ export const StaffDirectory = () => {
 
                     <div className="pt-3 border-t border-slate-100 dark:border-slate-800">
                       <p className="text-sm">
-                        <span className="font-semibold text-slate-700 dark:text-slate-300">Reason/Department:</span> {request.reason}
+                        <span className="font-semibold text-slate-700 dark:text-slate-300">Reason/Department:</span> {request.requestReason}
                       </p>
                     </div>
                   </div>

@@ -24,6 +24,11 @@ export interface User {
   name: string;
   role: UserRole;
   email: string;
+  notificationPreferences?: {
+    emailNewAppointments: boolean;
+    emailLowStock: boolean;
+    emailDailySummary: boolean;
+  };
 }
 
 export interface DepartmentStats {
@@ -104,6 +109,16 @@ export interface Appointment {
   type: string;
   status: 'Pending' | 'Confirmed' | 'Checked In' | 'Cancelled';
   date: string;
+}
+
+export interface HospitalSettings {
+  id: number;
+  name: string;
+  address: string;
+  phone: string;
+  email: string;
+  currency: string;
+  updated_at?: string;
 }
 
 export interface PatientRecord {

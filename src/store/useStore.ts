@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { PatientRecord, PharmacyItem, User, Invoice, StaffMember, ClinicalNote, PendingRegistration, Prescription, LabTest, LabOrder, Appointment } from '../types';
+import { PatientRecord, PharmacyItem, User, Invoice, StaffMember, ClinicalNote, PendingRegistration, Prescription, LabTest, LabOrder, Appointment, HospitalSettings } from '../types';
 import { supabase } from '../lib/supabase';
 import { RealtimeChannel } from '@supabase/supabase-js';
 
@@ -54,6 +54,11 @@ interface AppState {
   setupRealtimeSubscription: () => void;
   login: (user: User) => void;
   logout: () => void;
+  updateProfile: (name: string) => Promise<{success: boolean; error?: string}>;
+  hospitalSettings: HospitalSettings | null;
+  updateHospitalSettings: (settings: Partial<HospitalSettings>) => Promise<{success: boolean; error?: string}>;
+  updatePassword: (password: string) => Promise<{success: boolean; error?: string}>;
+  updateNotificationPreferences: (preferences: Partial<User['notificationPreferences']>) => Promise<{success: boolean; error?: string}>;
 }
 
 export const useStore = create<AppState>()(
@@ -62,6 +67,7 @@ export const useStore = create<AppState>()(
       patients: [],
       patientStats: { total: 0, inpatient: 0, outpatient: 0, emergency: 0 },
       lastFetchPatientsParams: null,
+      hospitalSettings: null,
       pharmacyItems: [],
       invoices: [],
       staff: [],
@@ -129,7 +135,8 @@ export const useStore = create<AppState>()(
             { count: total },
             { count: inpatient },
             { count: outpatient },
-            { count: emergency }
+            { count: emergency },
+            { data: hospitalSettings }
           ] = await Promise.all([
             supabase.from('pharmacy_items').select('*'),
             supabase.from('invoices').select('*'),
@@ -144,9 +151,11 @@ export const useStore = create<AppState>()(
             supabase.from('patients').select('id', { count: 'exact', head: true }).eq('status', 'Inpatient'),
             supabase.from('patients').select('id', { count: 'exact', head: true }).eq('status', 'Outpatient'),
             supabase.from('patients').select('id', { count: 'exact', head: true }).eq('department', 'Emergency'),
+            supabase.from('hospital_settings').select('*').eq('id', 1).single(),
           ]);
 
           set({
+            hospitalSettings: hospitalSettings || null,
             patientStats: {
               total: total || 0,
               inpatient: inpatient || 0,
@@ -490,6 +499,71 @@ export const useStore = create<AppState>()(
         }
         set({ user: null, isAuthenticated: false, patients: [], pharmacyItems: [], invoices: [], staff: [], pendingRegistrations: [], prescriptions: [], labTests: [], labOrders: [], appointments: [], realtimeChannel: null });
       },
+
+      updateProfile: async (name: string) => {
+        const { user } = get();
+        if (!user) return { success: false, error: 'Not logged in' };
+        
+        try {
+          const { error } = await supabase.from('profiles').update({ name }).eq('id', user.id);
+          if (error) throw error;
+          
+          set({ user: { ...user, name } });
+          get().logEvent('UPDATE', 'Profile', 'Updated personal profile information', user.id);
+          return { success: true };
+        } catch (error: any) {
+          console.error("Error updating profile:", error);
+          return { success: false, error: error.message };
+        }
+      },
+
+      updateHospitalSettings: async (settings: Partial<HospitalSettings>) => {
+        try {
+          const { data, error } = await supabase
+            .from('hospital_settings')
+            .update(settings)
+            .eq('id', 1)
+            .select()
+            .single();
+            
+          if (error) throw error;
+          
+          set({ hospitalSettings: data });
+          get().logEvent('UPDATE', 'System Settings', 'Updated hospital configuration');
+          return { success: true };
+        } catch (error: any) {
+          console.error("Error updating hospital settings:", error);
+          return { success: false, error: error.message };
+        }
+      },
+
+      updatePassword: async (password: string) => {
+        try {
+          const { error } = await supabase.auth.updateUser({ password });
+          if (error) throw error;
+          get().logEvent('UPDATE', 'Security', 'User updated their password', get().user?.id);
+          return { success: true };
+        } catch (error: any) {
+          return { success: false, error: error.message };
+        }
+      },
+
+      updateNotificationPreferences: async (preferences: Partial<User['notificationPreferences']>) => {
+        const { user } = get();
+        if (!user) return { success: false, error: 'Not logged in' };
+        
+        try {
+          const newPrefs = { ...(user.notificationPreferences || {}), ...preferences };
+          const { error } = await supabase.from('profiles').update({ notification_preferences: newPrefs }).eq('id', user.id);
+          if (error) throw error;
+          
+          set({ user: { ...user, notificationPreferences: newPrefs as any } });
+          get().logEvent('UPDATE', 'Settings', 'Updated notification preferences', user.id);
+          return { success: true };
+        } catch (error: any) {
+          return { success: false, error: error.message };
+        }
+      }
     }),
     {
       name: 'hims-storage',
