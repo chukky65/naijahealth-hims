@@ -36,6 +36,7 @@ interface AppState {
   addPrescription: (prescription: Omit<Prescription, 'id' | 'date' | 'status'>) => Promise<void>;
   dispensePrescription: (id: string) => Promise<void>;
   labTests: LabTest[];
+  addLabTest: (test: Omit<LabTest, 'id'>) => Promise<void>;
   labOrders: LabOrder[];
   addLabOrder: (order: Omit<LabOrder, 'id' | 'date' | 'status' | 'resultValue' | 'notes' | 'completedAt'>) => Promise<void>;
   updateLabOrderStatus: (id: string, status: 'In Progress') => Promise<void>;
@@ -361,6 +362,29 @@ export const useStore = create<AppState>()(
           get().fetchData();
         } else {
           console.error("Failed to dispense prescription:", error);
+          throw error;
+        }
+      },
+
+      addLabTest: async (test) => {
+        const dbTest = {
+          name: test.name,
+          category: test.category,
+          turnaround_time_minutes: test.turnaroundTimeMinutes,
+          price: test.price
+        };
+        const { data, error } = await supabase.from('lab_tests').insert([dbTest]).select().single();
+        if (!error && data) {
+          const newTest: LabTest = {
+            id: data.id,
+            name: data.name,
+            category: data.category,
+            turnaroundTimeMinutes: data.turnaround_time_minutes,
+            price: data.price
+          };
+          set((state) => ({ labTests: [...state.labTests, newTest] }));
+        } else {
+          console.error("Failed to add lab test:", error);
           throw error;
         }
       },

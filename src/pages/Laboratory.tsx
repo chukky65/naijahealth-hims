@@ -1,16 +1,33 @@
 import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, Badge } from '../components/ui/core';
-import { FlaskConical, Search, CheckCircle, Clock, FileText, ChevronRight, Activity } from 'lucide-react';
+import { FlaskConical, Search, CheckCircle, Clock, FileText, ChevronRight, Activity, Plus, X } from 'lucide-react';
 import { useStore } from '../store/useStore';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
 
 export const Laboratory = () => {
-  const { labOrders, labTests, patients, updateLabOrderStatus, completeLabOrder, user } = useStore();
+  const { labOrders, labTests, patients, updateLabOrderStatus, completeLabOrder, user, addLabTest } = useStore();
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedOrder, setSelectedOrder] = useState<string | null>(null);
   const [resultValue, setResultValue] = useState('');
   const [notes, setNotes] = useState('');
+
+  // Add Test Modal State
+  const [showAddTestModal, setShowAddTestModal] = useState(false);
+  const [newTest, setNewTest] = useState({ name: '', category: 'Hematology', turnaroundTimeMinutes: 60, price: 0 });
+
+  const handleAddTest = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newTest.name) return;
+    try {
+      await addLabTest(newTest);
+      toast.success('Lab test added to catalog');
+      setShowAddTestModal(false);
+      setNewTest({ name: '', category: 'Hematology', turnaroundTimeMinutes: 60, price: 0 });
+    } catch (error) {
+      toast.error('Failed to add lab test');
+    }
+  };
 
   const filteredOrders = labOrders
     .filter(o => o.status !== 'Completed')
@@ -51,6 +68,14 @@ export const Laboratory = () => {
           <h1 className="text-2xl font-bold tracking-tight">Laboratory & Radiology</h1>
           <p className="text-slate-500">Manage pending tests, upload results, and track turnaround times.</p>
         </div>
+        {(user?.role === 'Admin' || user?.role === 'MedicalDirector' || user?.role === 'LabTechnician') && (
+          <button 
+            onClick={() => setShowAddTestModal(true)}
+            className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors shadow-sm"
+          >
+            <Plus className="w-4 h-4" /> Add New Test
+          </button>
+        )}
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -223,6 +248,76 @@ export const Laboratory = () => {
           )}
         </div>
       </div>
+
+      {/* Add Test Modal */}
+      {showAddTestModal && (
+        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-slate-900 rounded-xl shadow-xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in-95 duration-200 border border-slate-200 dark:border-slate-800">
+            <div className="flex justify-between items-center p-4 border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900">
+              <h2 className="font-semibold text-lg flex items-center gap-2"><FlaskConical className="w-5 h-5 text-indigo-500" /> Add New Lab Test</h2>
+              <button onClick={() => setShowAddTestModal(false)} className="text-slate-500 hover:text-slate-700 dark:hover:text-slate-300">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <form onSubmit={handleAddTest} className="p-4 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Test Name</label>
+                <input 
+                  type="text" required
+                  value={newTest.name}
+                  onChange={e => setNewTest({...newTest, name: e.target.value})}
+                  className="w-full px-3 py-2 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-md outline-none focus:ring-2 focus:ring-indigo-500/50"
+                  placeholder="e.g. Fasting Blood Sugar"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Category</label>
+                <select 
+                  value={newTest.category}
+                  onChange={e => setNewTest({...newTest, category: e.target.value})}
+                  className="w-full px-3 py-2 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-md outline-none focus:ring-2 focus:ring-indigo-500/50"
+                >
+                  <option value="Hematology">Hematology</option>
+                  <option value="Chemistry">Chemistry</option>
+                  <option value="Microbiology">Microbiology</option>
+                  <option value="Parasitology">Parasitology</option>
+                  <option value="Virology">Virology</option>
+                  <option value="Radiology">Radiology</option>
+                  <option value="Cardiology">Cardiology</option>
+                </select>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Turnaround (Mins)</label>
+                  <input 
+                    type="number" required min="1"
+                    value={newTest.turnaroundTimeMinutes}
+                    onChange={e => setNewTest({...newTest, turnaroundTimeMinutes: parseInt(e.target.value) || 0})}
+                    className="w-full px-3 py-2 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-md outline-none focus:ring-2 focus:ring-indigo-500/50"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Price (₦)</label>
+                  <input 
+                    type="number" required min="0"
+                    value={newTest.price}
+                    onChange={e => setNewTest({...newTest, price: parseFloat(e.target.value) || 0})}
+                    className="w-full px-3 py-2 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-md outline-none focus:ring-2 focus:ring-indigo-500/50"
+                  />
+                </div>
+              </div>
+              <div className="pt-4 flex justify-end gap-3">
+                <button type="button" onClick={() => setShowAddTestModal(false)} className="px-4 py-2 text-sm font-medium text-slate-600 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200">
+                  Cancel
+                </button>
+                <button type="submit" className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-md text-sm font-medium transition-colors">
+                  Save Test
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
