@@ -12,6 +12,7 @@ import autoTable from 'jspdf-autotable';
 import { useStore } from '../store/useStore';
 import { Skeleton, TableSkeleton } from '../components/ui/Skeleton';
 import { useTranslation } from 'react-i18next';
+import { usePatients, usePatientStats } from '../lib/queries';
 
 import { PatientVitals } from '../components/PatientVitals';
 
@@ -43,7 +44,7 @@ const patientSchema = z.object({
 type PatientFormValues = z.infer<typeof patientSchema>;
 
 export const Patients = () => {
-  const { patients, patientStats, fetchPatients, addPatient, addClinicalNote, isLoading, setIsLoading, user, pharmacyItems, prescriptions, addPrescription, labTests, labOrders, addLabOrder } = useStore();
+  const { addPatient, addClinicalNote, user, pharmacyItems, prescriptions, addPrescription, labTests, labOrders, addLabOrder } = useStore();
   const { t } = useTranslation();
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
@@ -137,14 +138,6 @@ export const Patients = () => {
   };
 
   React.useEffect(() => {
-    setIsLoading(true);
-    const timer = setTimeout(() => {
-      setIsLoading(false);
-    }, 1200);
-    return () => clearTimeout(timer);
-  }, [setIsLoading]);
-
-  React.useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         setIsAddModalOpen(false);
@@ -170,10 +163,11 @@ export const Patients = () => {
     return () => clearTimeout(handler);
   }, [searchQuery]);
 
-  // Fetch paginated patients
-  React.useEffect(() => {
-    fetchPatients(currentPage, debouncedSearchQuery, itemsPerPage, sortConfig?.key, sortConfig?.direction === 'asc');
-  }, [currentPage, debouncedSearchQuery, sortConfig, fetchPatients]);
+  const { data: patientData, isLoading } = usePatients(currentPage, itemsPerPage, debouncedSearchQuery);
+  const { data: statsData } = usePatientStats();
+  
+  const patients = patientData?.data || [];
+  const patientStats = statsData || { total: 0, inpatient: 0, outpatient: 0, emergency: 0 };
 
   const { register, handleSubmit, reset, formState: { errors } } = useForm<PatientFormValues>({
     resolver: zodResolver(patientSchema) as any,
@@ -210,7 +204,7 @@ export const Patients = () => {
     setSortConfig({ key, direction });
   };
 
-  const totalPages = Math.ceil(patientStats.total / itemsPerPage);
+  const totalPages = patientData?.totalPages || 1;
 
   const exportPDF = () => {
     const doc = new jsPDF();

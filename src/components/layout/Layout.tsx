@@ -3,6 +3,7 @@ import { Sidebar } from './Sidebar';
 import { Header } from './Header';
 import { Outlet } from 'react-router-dom';
 import { SessionTimer } from '../SessionTimer';
+import { AICoPilot } from '../AICoPilot';
 
 export const Layout = () => {
   return (
@@ -16,6 +17,7 @@ export const Layout = () => {
             <Outlet />
           </div>
         </main>
+        <AICoPilot />
       </div>
     </div>
   );

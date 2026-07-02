@@ -12,10 +12,8 @@ interface PatientStats {
 }
 
 interface AppState {
-  patients: PatientRecord[];
+  patients: PatientRecord[]; // To be completely removed soon, keeping for Dashboard temporarily if needed, but we should remove it.
   patientStats: PatientStats;
-  lastFetchPatientsParams: { page: number, searchQuery: string, limit: number, sortBy?: keyof PatientRecord, sortAsc?: boolean } | null;
-  fetchPatients: (page: number, searchQuery: string, limit: number, sortBy?: keyof PatientRecord, sortAsc?: boolean) => Promise<void>;
   pharmacyItems: PharmacyItem[];
   invoices: Invoice[];
   staff: StaffMember[];
@@ -100,11 +98,7 @@ export const useStore = create<AppState>()(
               console.log('Realtime event received:', payload);
               // Simply refresh all data when any change happens in the database.
               get().fetchData();
-              // Also refresh current page of patients if applicable
-              const params = get().lastFetchPatientsParams;
-              if (params) {
-                get().fetchPatients(params.page, params.searchQuery, params.limit, params.sortBy, params.sortAsc);
-              }
+
             }
           )
           .subscribe();
@@ -147,6 +141,7 @@ export const useStore = create<AppState>()(
             supabase.from('lab_orders').select('*'),
             supabase.from('appointments').select('*'),
             
+            // Still fetching stats globally for dashboard initially
             supabase.from('patients').select('id', { count: 'exact', head: true }),
             supabase.from('patients').select('id', { count: 'exact', head: true }).eq('status', 'Inpatient'),
             supabase.from('patients').select('id', { count: 'exact', head: true }).eq('status', 'Outpatient'),
@@ -198,57 +193,7 @@ export const useStore = create<AppState>()(
         }
       },
 
-      fetchPatients: async (page, searchQuery, limit, sortBy, sortAsc = true) => {
-        set({ isLoading: true, lastFetchPatientsParams: { page, searchQuery, limit, sortBy, sortAsc } });
-        try {
-          const from = (page - 1) * limit;
-          const to = from + limit - 1;
-
-          let query = supabase.from('patients').select('*, clinical_notes(*)', { count: 'exact' });
-
-          if (searchQuery) {
-             query = query.or(`name.ilike.%${searchQuery}%,id.ilike.%${searchQuery}%,diagnosis.ilike.%${searchQuery}%`);
-          }
-
-          if (sortBy) {
-            // Need to map frontend keys to DB columns
-            const columnMap: Record<string, string> = {
-              bloodGroup: 'blood_group', paymentMethod: 'payment_method', admissionDate: 'admission_date',
-              contactInfo: 'contact_info', medicalHistory: 'medical_history', insuranceDetails: 'insurance_details'
-            };
-            const col = columnMap[sortBy] || sortBy;
-            query = query.order(col, { ascending: sortAsc });
-          } else {
-             query = query.order('created_at', { ascending: false });
-          }
-
-          query = query.range(from, to);
-          
-          const { data: patients, count, error } = await query;
-          
-          if (!error && patients) {
-            set((state) => ({
-              patients: patients.map((p: any) => ({
-                id: p.id, name: p.name, age: p.age, gender: p.gender, bloodGroup: p.blood_group,
-                genotype: p.genotype, paymentMethod: p.payment_method, diagnosis: p.diagnosis,
-                status: p.status, department: p.department, admissionDate: p.admission_date,
-                contactInfo: p.contact_info, medicalHistory: p.medical_history, insuranceDetails: p.insurance_details,
-                clinicalNotes: p.clinical_notes ? p.clinical_notes.map((n: any) => ({
-                  id: n.id, date: n.date, note: n.note, author: n.author
-                })) : []
-              })),
-              // Update total for pagination, but keep other stats intact if no search
-              patientStats: searchQuery 
-                ? { ...state.patientStats, total: count || 0 }
-                : { ...state.patientStats, total: count || state.patientStats.total }
-            }));
-          }
-        } catch (error) {
-           console.error("Error fetching patients:", error);
-        } finally {
-          set({ isLoading: false });
-        }
-      },
+      // fetchPatients removed in favor of React Query usePatients
 
       fetchAuditLogs: async () => {
         const { data, error } = await supabase.from('audit_logs').select('*').order('created_at', { ascending: false }).limit(100);

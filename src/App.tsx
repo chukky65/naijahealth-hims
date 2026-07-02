@@ -13,6 +13,7 @@ import { Departments } from './pages/Departments';
 import { Pharmacy } from './pages/Pharmacy';
 import { Laboratory } from './pages/Laboratory';
 import { Patients } from './pages/Patients';
+import { Triage } from './pages/Triage';
 import { Appointments } from './pages/Appointments';
 import { Billing } from './pages/Billing';
 import { StaffDirectory } from './pages/Staff';
@@ -23,6 +24,7 @@ import { Login } from './pages/Login';
 import { SignUp } from './pages/SignUp';
 import { ForgotPassword } from './pages/ForgotPassword';
 import { PatientPortal } from './pages/PatientPortal';
+import { Telemedicine } from './pages/Telemedicine';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { useStore } from './store/useStore';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -134,6 +136,11 @@ export default function App() {
                   <Departments />
                 </RoleRoute>
               } />
+              <Route path="telemedicine" element={
+                <RoleRoute allowedRoles={['MedicalDirector', 'Doctor', 'Admin']}>
+                  <Telemedicine />
+                </RoleRoute>
+              } />
               <Route path="pharmacy" element={
                 <RoleRoute allowedRoles={['MedicalDirector', 'Pharmacist', 'Admin']}>
                   <Pharmacy />
@@ -147,6 +154,11 @@ export default function App() {
               <Route path="patients" element={
                 <RoleRoute allowedRoles={['MedicalDirector', 'Doctor', 'Receptionist', 'Admin']}>
                   <Patients />
+                </RoleRoute>
+              } />
+              <Route path="triage" element={
+                <RoleRoute allowedRoles={['MedicalDirector', 'Doctor', 'Nurse', 'Admin']}>
+                  <Triage />
                 </RoleRoute>
               } />
               <Route path="analytics" element={

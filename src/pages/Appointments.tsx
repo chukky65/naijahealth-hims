@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, Badge } from '../components/ui/core';
-import { Calendar as CalendarIcon, Clock, User, ChevronLeft, ChevronRight, Plus, X, AlertCircle } from 'lucide-react';
+import { Calendar as CalendarIcon, Clock, User, ChevronLeft, ChevronRight, Plus, X, AlertCircle, MessageSquare, Smartphone, CheckCircle2, Loader2, Send } from 'lucide-react';
 import { Skeleton } from '../components/ui/Skeleton';
 import { format, addDays, startOfWeek } from 'date-fns';
 import { useStore } from '../store/useStore';
@@ -20,6 +20,19 @@ export const Appointments = () => {
     type: 'Consultation'
   });
   const [isBooking, setIsBooking] = useState(false);
+  const [isDispatching, setIsDispatching] = useState(false);
+  const [dispatchComplete, setDispatchComplete] = useState(false);
+  
+  const handleDispatchReminders = () => {
+    setIsDispatching(true);
+    setDispatchComplete(false);
+    setTimeout(() => {
+      setIsDispatching(false);
+      setDispatchComplete(true);
+      toast.success('Successfully dispatched WhatsApp & SMS reminders to all scheduled patients.');
+      setTimeout(() => setDispatchComplete(false), 5000);
+    }, 2500);
+  };
   
   const doctors = staff.filter(s => s.role === 'Doctor' || s.role === 'MedicalDirector');
 
@@ -104,6 +117,57 @@ export const Appointments = () => {
                   </button>
                 ))}
               </div>
+            </CardContent>
+          </Card>
+
+          <Card className="bg-gradient-to-br from-indigo-500/10 to-purple-500/10 border-indigo-200 dark:border-indigo-900/50">
+            <CardHeader>
+              <CardTitle className="text-lg flex items-center gap-2 text-indigo-700 dark:text-indigo-400">
+                <MessageSquare className="w-5 h-5" />
+                Automated Reminders
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-sm text-slate-600 dark:text-slate-400 mb-4 leading-relaxed">
+                Send automated WhatsApp and SMS appointment reminders to patients scheduled for tomorrow to reduce no-shows.
+              </p>
+              
+              <div className="flex items-center justify-between p-3 bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-800 mb-4">
+                <div className="flex items-center gap-2 text-sm font-medium">
+                  <Smartphone className="w-4 h-4 text-slate-400" />
+                  <span>Pending Dispatches</span>
+                </div>
+                <Badge variant="secondary" className="bg-indigo-100 text-indigo-700 dark:bg-indigo-900/50 dark:text-indigo-300">
+                  {appointments.length} patients
+                </Badge>
+              </div>
+
+              <button
+                onClick={handleDispatchReminders}
+                disabled={isDispatching || dispatchComplete}
+                className={`w-full py-2.5 rounded-lg font-medium flex items-center justify-center gap-2 transition-all ${
+                  dispatchComplete 
+                    ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800 cursor-not-allowed'
+                    : 'bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm'
+                } disabled:opacity-80`}
+              >
+                {isDispatching ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Sending Messages...
+                  </>
+                ) : dispatchComplete ? (
+                  <>
+                    <CheckCircle2 className="w-4 h-4" />
+                    Dispatched Successfully
+                  </>
+                ) : (
+                  <>
+                    <Send className="w-4 h-4" />
+                    Dispatch All Reminders
+                  </>
+                )}
+              </button>
             </CardContent>
           </Card>
         </div>

@@ -168,6 +168,63 @@ export const Departments = () => {
 
       <Card>
         <CardHeader>
+          <div className="flex items-center justify-between">
+            <CardTitle className="flex items-center gap-2">
+              <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse"></div>
+              Smart Ward Occupancy Heatmap
+            </CardTitle>
+            <div className="flex gap-4 text-xs font-medium">
+              <span className="flex items-center gap-1"><div className="w-3 h-3 rounded bg-emerald-500"></div> Available</span>
+              <span className="flex items-center gap-1"><div className="w-3 h-3 rounded bg-amber-500"></div> Assigned</span>
+              <span className="flex items-center gap-1"><div className="w-3 h-3 rounded bg-red-500"></div> Critical/Maintenance</span>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+            {mockDepartments.filter(d => d.name !== 'Outpatient' && d.name !== 'Dental').map(dept => {
+              // Simulate bed layout based on occupancy percentage
+              const totalBeds = dept.name === 'Emergency' ? 24 : dept.name === 'Surgery' ? 16 : 30;
+              const occupied = Math.round((dept.bedOccupancy / 100) * totalBeds);
+              const maintenance = dept.name === 'Emergency' ? 2 : 0;
+              
+              const beds = Array.from({ length: totalBeds }).map((_, i) => {
+                if (i < maintenance) return 'maintenance';
+                if (i < occupied + maintenance) return 'occupied';
+                return 'available';
+              });
+
+              return (
+                <div key={dept.name} className="bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-4">
+                  <div className="flex justify-between items-center mb-4 border-b border-slate-200 dark:border-slate-800 pb-2">
+                    <span className="font-semibold text-slate-900 dark:text-white">{dept.name} Ward</span>
+                    <Badge variant={dept.bedOccupancy > 90 ? 'danger' : dept.bedOccupancy > 75 ? 'warning' : 'success'}>
+                      {dept.bedOccupancy}% Full
+                    </Badge>
+                  </div>
+                  <div className="grid grid-cols-6 gap-2">
+                    {beds.map((status, i) => (
+                      <div 
+                        key={i} 
+                        className={`
+                          aspect-square rounded flex items-center justify-center text-[10px] font-bold text-white shadow-sm transition-all hover:scale-110 cursor-pointer
+                          ${status === 'maintenance' ? 'bg-red-500' : status === 'occupied' ? 'bg-amber-500' : 'bg-emerald-500'}
+                        `}
+                        title={`Bed ${i + 1} - ${status}`}
+                      >
+                        {i + 1}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
           <CardTitle>Detailed Department Metrics</CardTitle>
         </CardHeader>
         <div className="overflow-x-auto">

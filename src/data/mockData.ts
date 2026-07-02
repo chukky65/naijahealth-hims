@@ -50,3 +50,35 @@ export const mockSystemAlerts: SystemAlert[] = [
     confidence: 92,
   }
 ];
+
+export const mockRevenueData = [
+  { month: 'Jan', revenue: 4500000, expenses: 3200000 },
+  { month: 'Feb', revenue: 5200000, expenses: 3400000 },
+  { month: 'Mar', revenue: 4800000, expenses: 3100000 },
+  { month: 'Apr', revenue: 6100000, expenses: 3800000 },
+  { month: 'May', revenue: 5900000, expenses: 4000000 },
+  { month: 'Jun', revenue: 7200000, expenses: 4200000 },
+  { month: 'Jul', revenue: 8500000, expenses: 4500000 },
+  { month: 'Aug', revenue: 8100000, expenses: 4300000 },
+  { month: 'Sep', revenue: 9400000, expenses: 4800000 },
+  { month: 'Oct', revenue: 10200000, expenses: 5100000 },
+  { month: 'Nov', revenue: 11500000, expenses: 5400000 },
+  { month: 'Dec', revenue: 12800000, expenses: 6000000 },
+];
+
+export const mockPharmacyData = [
+  { name: 'Antibiotics', value: 45 },
+  { name: 'Antimalarials', value: 30 },
+  { name: 'Analgesics', value: 15 },
+  { name: 'Vitamins', value: 10 },
+];
+
+export const mockWaitTimeData = [
+  { day: 'Mon', waitTime: 45 },
+  { day: 'Tue', waitTime: 52 },
+  { day: 'Wed', waitTime: 38 },
+  { day: 'Thu', waitTime: 65 },
+  { day: 'Fri', waitTime: 48 },
+  { day: 'Sat', waitTime: 25 },
+  { day: 'Sun', waitTime: 20 },
+];

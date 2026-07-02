@@ -1,6 +1,6 @@
 import React, { useEffect } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, Building2, Pill, Users, BrainCircuit, Settings, Activity, LogOut, Sun, Moon, Calendar, Receipt, Contact, History, User, FlaskConical } from 'lucide-react';
+import { LayoutDashboard, Building2, Pill, Users, BrainCircuit, Settings, Activity, LogOut, Sun, Moon, Calendar, Receipt, Contact, History, User, FlaskConical, Video } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { useStore } from '../../store/useStore';
 import { UserRole } from '../../types';
@@ -30,6 +30,8 @@ export const Sidebar = () => {
   const allNavItems: NavItem[] = [
     { name: 'Dashboard', key: 'dashboard', path: '/', icon: LayoutDashboard, roles: ['MedicalDirector', 'Doctor', 'Pharmacist', 'Admin', 'Receptionist'] },
     { name: 'My Portal', key: 'myPortal', path: '/portal', icon: User, roles: ['Patient'] },
+    { name: 'Triage Board', key: 'triage', path: '/triage', icon: Activity, roles: ['MedicalDirector', 'Doctor', 'Nurse', 'Admin'] },
+    { name: 'Telemedicine', key: 'telemedicine', path: '/telemedicine', icon: Video, roles: ['MedicalDirector', 'Doctor', 'Admin'] },
     { name: 'Appointments', key: 'appointments', path: '/appointments', icon: Calendar, roles: ['MedicalDirector', 'Doctor', 'Receptionist', 'Admin'] },
     { name: 'Billing', key: 'billing', path: '/billing', icon: Receipt, roles: ['MedicalDirector', 'Admin', 'Receptionist'] },
     { name: 'Departments', key: 'departments', path: '/departments', icon: Building2, roles: ['MedicalDirector', 'Admin'] },
